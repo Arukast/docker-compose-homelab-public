@@ -1,0 +1,48 @@
+x-logging: &default-logging
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+services:
+  hermes-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile.hermes
+    container_name: ${HERMES_CONTAINER_NAME:-hermes-agent}
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    <<: *default-logging
+    tty: true
+    stdin_open: true
+    ports:
+      - "${HOST_IP:-127.0.0.1}:8642:8642"
+      - "${HOST_IP:-127.0.0.1}:9119:9119"
+    volumes:
+      - ./hermes-data:/opt/data
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+    environment:
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-http://litellm-proxy:4000/v1}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - HERMES_DASHBOARD=${HERMES_DASHBOARD:-true}
+      - HERMES_DASHBOARD_BASIC_AUTH_USERNAME=${HERMES_DASH_USER}
+      - HERMES_DASHBOARD_BASIC_AUTH_PASSWORD=${HERMES_DASH_PASS}
+      - SEARXNG_BASE_URL=${SEARXNG_BASE_URL:-http://searxng:8080}
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9119/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    networks: [ai-net]
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+
+networks:
+  ai-net:
+    external: true

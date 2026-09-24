@@ -1,0 +1,43 @@
+services:
+  docker-socket-proxy:
+    image: tecnativa/docker-socket-proxy:latest
+    container_name: ${DOCKER_SOCKET_PROXY_CONTAINER_NAME}
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+    networks:
+      - socket-proxy-net
+    ports:
+      - "${HOST_IP:-127.0.0.1}:2375:2375"
+    environment:
+      - INFO=${INFO:-1}
+      - VERSION=${VERSION:-1}
+      - PING=${PING:-1}
+      - EVENTS=${EVENTS:-1}
+      - CONTAINERS=${CONTAINERS:-0}
+      - NETWORKS=${NETWORKS:-0}
+      - STATS=${STATS:-0}
+      - LOGS=${LOGS:-0}
+      - AUTH=${AUTH:-0}
+      - BUILD=${BUILD:-0}
+      - EXEC=${EXEC:-0}
+      - VOLUMES=${VOLUMES:-0}
+      - SYSTEM=${SYSTEM:-0}
+      - POST=${POST:-0}
+      - ALLOW_START=${ALLOW_START:-0}
+      - ALLOW_STOP=${ALLOW_STOP:-0}
+      - ALLOW_RESTARTS=${ALLOW_RESTARTS:-0}
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --spider http://127.0.0.1:2375/_ping || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+networks:
+  socket-proxy-net:
+    external: true

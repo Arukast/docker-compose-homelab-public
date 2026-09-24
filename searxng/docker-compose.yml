@@ -1,0 +1,36 @@
+services:
+  searxng:
+    image: docker.io/searxng/searxng:latest
+    container_name: ${SEARXNG_CONTAINER_NAME:-searxng}
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    <<: *default-logging
+    volumes:
+      - ./searxng-data/settings.yml:/etc/searxng/settings.yml:ro
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+    environment:
+      - SEARXNG_BASE_URL=${SEARXNG_BASE_URL:-http://searxng:8080/}
+      - SEARXNG_SECRET_KEY=${SEARXNG_SECRET_KEY}
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
+    networks: [ai-net]
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+
+networks:
+  ai-net:
+    external: true

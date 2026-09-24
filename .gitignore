@@ -1,0 +1,12 @@
+# Secret config (contains Telegram webhook URL)
+.env
+setup.conf
+power_homelab.conf
+docs/
+dashboard/homarr
+
+# Editor / OS
+*.swp
+*.swo
+*~
+.DS_Store

@@ -1,0 +1,46 @@
+x-logging: &default-logging
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+services:
+  open-webui:
+    build:
+      context: .
+      dockerfile: Dockerfile.open-webui
+    container_name: ${OPENWEBUI_CONTAINER_NAME:-open-webui}
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    <<: *default-logging
+    ports:
+      - "${HOST_IP:-127.0.0.1}:8080:8080"
+    volumes:
+      - ./open-webui-data:/app/backend/data
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+    environment:
+      - OPENAI_API_BASE_URL=${OPENAI_API_BASE_URL:-http://litellm-proxy:4000/v1}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      # Local CPU-based RAG configuration
+      - RAG_EMBEDDING_MODEL=${RAG_EMBEDDING_MODEL:-BAAI/bge-m3}
+      - ENABLE_WEB_SEARCH=${ENABLE_WEB_SEARCH:-true}
+      - WEB_SEARCH_ENGINE=${WEB_SEARCH_ENGINE:-searxng}
+      - SEARXNG_QUERY_URL=${SEARXNG_QUERY_URL:-http://searxng:8080/search?q=<query>}
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/api/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks: [ai-net]
+    deploy:
+      resources:
+        limits:
+          memory: 5g
+
+networks:
+  ai-net:
+    external: true

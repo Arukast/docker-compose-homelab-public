@@ -1,0 +1,51 @@
+use_default_settings: true
+
+general:
+  debug: false
+  instance_name: "SearXNG"
+
+server:
+  port: 8080
+  bind_address: "0.0.0.0"
+  secret_key: "paste_your_generated_hex_string_here" # Generate a secret key using `openssl rand -hex 32`
+  limiter: false
+  image_proxy: true
+
+search:
+  safe_search: 0
+  autocomplete: ""
+  default_lang: ""
+  formats:
+    - html
+    - json
+
+engines:
+  - name: google
+    engine: google
+    shortcut: g
+    disabled: false
+    weight: 1.0
+
+  - name: duckduckgo
+    engine: duckduckgo
+    shortcut: ddg
+    disabled: false
+    weight: 1.0
+
+  - name: bing
+    engine: bing
+    shortcut: b
+    disabled: false
+    weight: 1.0
+
+  - name: brave
+    engine: brave
+    shortcut: br
+    disabled: false
+    weight: 1.0
+
+  - name: wikipedia
+    engine: wikipedia
+    shortcut: wp
+    disabled: false
+    weight: 0.8

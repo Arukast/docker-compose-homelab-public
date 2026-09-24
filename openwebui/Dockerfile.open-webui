@@ -1,0 +1,7 @@
+# Patches CVE-2026-68770: a critical arbitrary-code-execution bug in
+# sentence-transformers <=5.5.1 that triggers on local model load even
+# with trust_remote_code=False. Upgrading is required regardless of
+# which embedding model you use.
+FROM ghcr.io/open-webui/open-webui:main
+
+RUN pip install --no-cache-dir --upgrade "sentence-transformers>5.5.1"

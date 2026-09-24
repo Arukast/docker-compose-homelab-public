@@ -1,0 +1,70 @@
+services:
+  docker-socket-proxy:
+    image: tecnativa/docker-socket-proxy:latest
+    container_name: docker-socket-proxy
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - portainer_net
+    environment:
+      - LOG_LEVEL=info
+      - PING=1
+      - VERSION=1
+      - INFO=1
+      - EVENTS=1
+      - CONTAINERS=1
+      - IMAGES=1
+      - NETWORKS=1
+      - VOLUMES=1
+      - SERVICES=1
+      - TASKS=1
+      - NODES=1
+      - ALLOW_START=1
+      - ALLOW_STOP=1
+      - ALLOW_RESTARTS=1
+      # Disable unless required:
+      - POST=1
+      - DELETE=1
+      - EXEC=0
+      - BUILD=0
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --spider http://127.0.0.1:2375/_ping || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  portainer:
+    image: portainer/portainer-ce:latest
+    container_name: portainer-server
+    restart: unless-stopped
+    command: -H tcp://docker-socket-proxy:2375
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - portainer_net
+    ports:
+      - "${HOST_IP:-127.0.0.1}:9443:9443"
+    environment:
+      - TZ=${TZ:-UTC}
+    volumes:
+      - portainer_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-check-certificate --quiet --spider https://localhost:9443/api/system/status || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    depends_on:
+      docker-socket-proxy:
+        condition: service_healthy
+
+networks:
+  portainer_net:
+    driver: bridge
+
+volumes:
+  portainer_data:

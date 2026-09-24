@@ -1,0 +1,79 @@
+x-logging: &default-logging
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+services:
+  omniroute:
+    image: diegosouzapw/omniroute:latest
+    container_name: ${OMNIROUTE_CONTAINER_NAME:-omniroute}
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    <<: *default-logging
+    ports:
+      - "${HOST_IP:-127.0.0.1}:20128:20128"
+    volumes:
+      - ./omniroute-data:/app/data
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+    environment:
+      - NODE_ENV=${NODE_ENV:-production}
+      - PORT=${PORT:-20128}
+      - DATA_DIR=${DATA_DIR:-/app/data}
+      - JWT_SECRET=${JWT_SECRET}
+      - API_KEY_SECRET=${API_KEY_SECRET}
+      - STORAGE_ENCRYPTION_KEY=${STORAGE_ENCRYPTION_KEY}
+      - STORAGE_ENCRYPTION_KEY_VERSION=${STORAGE_ENCRYPTION_KEY_VERSION:-v1}
+      - MACHINE_ID_SALT=${MACHINE_ID_SALT}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
+      - SEARXNG_BASE_URL=${SEARXNG_BASE_URL:-http://searxng:8080}
+    healthcheck:
+      test: ["CMD", "node", "healthcheck.mjs"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks: [ai-net, ai-backend-net]
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+
+  redis:
+    image: redis:7-alpine
+    container_name: ${REDIS_CONTAINER_NAME:-omniroute-redis}
+    restart: unless-stopped
+    <<: *default-logging
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru --pidfile /tmp/redis.pid
+    user: "999:999"
+    volumes:
+      - ./omniroute-redis-data:/data
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks: [ai-backend-net]
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    deploy:
+      resources:
+        limits:
+          memory: 320m
+
+networks:
+  ai-net:
+    external: true
+  ai-backend-net:
+    external: true
+    name: shared-ai-backend-net

@@ -1,0 +1,27 @@
+services:
+  homarr:
+    image: ghcr.io/homarr-labs/homarr:latest
+    container_name: ${HOMARR_CONTAINER_NAME}
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - dashboard-net
+    ports:
+      - "${HOST_IP:-127.0.0.1}:7575:7575"
+    environment:
+      - SECRET_ENCRYPTION_KEY=${HOMARR_SECRET_ENCRYPTION_KEY}
+    volumes:
+      - ./homarr/appdata:/appdata
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 7575 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+
+networks:
+  dashboard-net:
+    driver: bridge

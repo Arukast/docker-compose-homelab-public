@@ -1,0 +1,44 @@
+x-logging: &default-logging
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+services:
+  litellm-proxy:
+    image: ghcr.io/berriai/litellm:main-latest
+    container_name: ${LITELLM_PROXY_CONTAINER_NAME:-litellm-proxy}
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    <<: *default-logging
+    ports:
+      - "${HOST_IP:-127.0.0.1}:4000:4000"
+    volumes:
+      - ./litellm-config.yaml:/app/config.yaml
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+    environment:
+      - OMNIROUTE_API_KEY=${OMNIROUTE_API_KEY}
+      - PRESIDIO_ANALYZER_API_BASE=${PRESIDIO_ANALYZER_API_BASE:-http://presidio-analyzer:3000}
+      - PRESIDIO_ANONYMIZER_API_BASE=${PRESIDIO_ANONYMIZER_API_BASE:-http://presidio-anonymizer:3000}
+    command: ["--config", "/app/config.yaml"]
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:4000/health/readiness')"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks: [ai-net, ai-backend-net]
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+
+networks:
+  ai-net:
+    external: true
+  ai-backend-net:
+    external: true
+    name: shared-ai-backend-net

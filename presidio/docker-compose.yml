@@ -1,0 +1,67 @@
+x-logging: &default-logging
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+services:
+  presidio-analyzer:
+    image: ghcr.io/data-privacy-stack/presidio-analyzer:latest
+    container_name: ${PRESIDIO_ANALYZER_CONTAINER_NAME:-presidio-analyzer}
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    <<: *default-logging
+    volumes:
+      - ./secret_recognizers.yaml:/app/config/secret_recognizers.yaml:ro
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+    environment:
+      - ANALYZER_CONF_FILE=${ANALYZER_CONF_FILE:-/app/config/secret_recognizers.yaml}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 3s
+      start_period: 30s
+      retries: 3
+    networks: [ai-backend-net]
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    deploy:
+      resources:
+        limits:
+          memory: 768m
+
+  presidio-anonymizer:
+    image: ghcr.io/data-privacy-stack/presidio-anonymizer:latest
+    container_name: ${PRESIDIO_ANONYMIZER_CONTAINER_NAME:-presidio-anonymizer}
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    <<: *default-logging
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 3s
+      start_period: 30s
+      retries: 3
+    networks: [ai-backend-net]
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+
+networks:
+  ai-backend-net:
+    external: true
+    name: shared-ai-backend-net

@@ -1,0 +1,28 @@
+services:
+  tailscale:
+    image: tailscale/tailscale:latest
+    container_name: ${TAILSCALE_CONTAINER_NAME}
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    hostname: ${HOSTNAME}
+    network_mode: "host"
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    environment:
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_USERSPACE=${TS_USERSPACE}
+      - TS_EXTRA_ARGS=${TS_EXTRA_ARGS}
+    volumes:
+      - ./tailscale/state:/var/lib/tailscale
+      - /dev/net/tun:/dev/net/tun
+      - /lib/modules:/lib/modules:ro
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+    healthcheck:
+      test: ["CMD", "tailscale", "status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
