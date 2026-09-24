@@ -28,8 +28,8 @@ services:
       - OPENAI_BASE_URL=${OPENAI_BASE_URL:-http://litellm-proxy:4000/v1}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - HERMES_DASHBOARD=${HERMES_DASHBOARD:-true}
-      - HERMES_DASHBOARD_BASIC_AUTH_USERNAME=${HERMES_DASH_USER}
-      - HERMES_DASHBOARD_BASIC_AUTH_PASSWORD=${HERMES_DASH_PASS}
+      - HERMES_DASHBOARD_BASIC_AUTH_USERNAME=${HERMES_DASHBOARD_BASIC_AUTH_USERNAME}
+      - HERMES_DASHBOARD_BASIC_AUTH_PASSWORD=${HERMES_DASHBOARD_BASIC_AUTH_PASSWORD}
       - SEARXNG_BASE_URL=${SEARXNG_BASE_URL:-http://searxng:8080}
     healthcheck:
       test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9119/health')"]
