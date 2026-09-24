@@ -3,7 +3,7 @@ model_list:
   - model_name: "protected/*"
     litellm_params:
       model: openai/*
-      api_base: http://omniroute:20128/v1
+      api_base: os.environ/OMNIROUTE_API_BASE
       api_key: os.environ/OMNIROUTE_API_KEY
       guardrails:
         - "presidio-pii"
@@ -12,14 +12,14 @@ model_list:
   - model_name: "raw/*"
     litellm_params:
       model: openai/*
-      api_base: http://omniroute:20128/v1
+      api_base: os.environ/OMNIROUTE_API_BASE
       api_key: os.environ/OMNIROUTE_API_KEY
 
   # Default fallback catch-all (runs Presidio)
   - model_name: "*"
     litellm_params:
       model: openai/*
-      api_base: http://omniroute:20128/v1
+      api_base: os.environ/OMNIROUTE_API_BASE
       api_key: os.environ/OMNIROUTE_API_KEY
       guardrails:
         - "presidio-pii"
