@@ -20,7 +20,6 @@ services:
     volumes:
       - ./open-webui-data:/app/backend/data
       - /etc/localtime:/etc/localtime:ro
-      - /etc/timezone:/etc/timezone:ro
     environment:
       - OPENAI_API_BASE_URL=${OPENAI_API_BASE_URL:-http://litellm-proxy:4000/v1}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
