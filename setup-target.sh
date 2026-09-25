@@ -47,6 +47,9 @@ tee "$DEPLOY_SCRIPT" > /dev/null << 'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Navigate to repo root first
+cd /opt/docker/docker-compose-homelab
+
 TARGET_DIR="${1:-}"
 
 if [ -z "$TARGET_DIR" ] || [ ! -d "$TARGET_DIR" ]; then
