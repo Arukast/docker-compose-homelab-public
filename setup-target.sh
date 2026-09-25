@@ -22,8 +22,26 @@ if ! id "$TARGET_USER" &>/dev/null; then
     echo "User '$TARGET_USER' created."
 fi
 
-echo "==> 2. Installing Docker dependencies & adding '$TARGET_USER' to docker group..."
-apt update && apt install -y docker.io docker-compose-plugin git curl
+echo "==> 2. Checking dependencies..."
+# Ensure Docker is already installed on the LXC
+if ! command -v docker &> /dev/null; then
+    echo "Error: Docker is not installed on this host. Please install Docker first."
+    exit 1
+fi
+
+# Install git or curl only if missing
+MISSING_PKGS=()
+for pkg in git curl; do
+    if ! command -v "$pkg" &> /dev/null; then
+        MISSING_PKGS+=("$pkg")
+    fi
+done
+
+if [ ${#MISSING_PKGS[@]} -gt 0 ]; then
+    echo "Installing missing dependencies: ${MISSING_PKGS[*]}..."
+    apt update && apt install -y "${MISSING_PKGS[@]}"
+fi
+
 usermod -aG docker "$TARGET_USER"
 
 echo "==> 3. Creating restricted deployment script..."
