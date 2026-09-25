@@ -5,6 +5,7 @@ x-logging: &default-logging
       max-size: "10m"
       max-file: "3"
 
+
 services:
   presidio-analyzer:
     image: ghcr.io/data-privacy-stack/presidio-analyzer:2.2.363
