@@ -30,7 +30,7 @@ jobs:
 
           for DIR in $CHANGED_DIRS; do
             # Extract space-separated list of target IPs for the service directory
-            TARGET_HOSTS=$(grep -E "^${DIR}=" "$HOSTS_FILE" | cut -d '=' -f2 | tr -d '"'\'')
+            TARGET_HOSTS=$(grep -E "^${DIR}=" "$HOSTS_FILE" | cut -d '=' -f2 | tr -d ' "' | tr -d "'")
 
             if [ -n "$TARGET_HOSTS" ]; then
               for TARGET_HOST in $TARGET_HOSTS; do
