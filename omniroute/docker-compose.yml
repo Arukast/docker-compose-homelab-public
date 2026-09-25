@@ -7,7 +7,7 @@ x-logging: &default-logging
 
 services:
   omniroute:
-    image: diegosouzapw/omniroute:v3.8.51
+    image: diegosouzapw/omniroute:3.8.51
     container_name: ${OMNIROUTE_CONTAINER_NAME:-omniroute}
     restart: unless-stopped
     security_opt:
@@ -70,7 +70,6 @@ services:
       resources:
         limits:
           memory: 320m
-
 
 networks:
   ai-net:
