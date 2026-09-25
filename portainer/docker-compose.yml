@@ -1,6 +1,6 @@
 services:
   docker-socket-proxy:
-    image: tecnativa/docker-socket-proxy:latest
+    image: tecnativa/docker-socket-proxy:v0.4.2
     container_name: docker-socket-proxy
     restart: unless-stopped
     security_opt:
@@ -38,7 +38,7 @@ services:
       start_period: 5s
 
   portainer:
-    image: portainer/portainer-ce:latest
+    image: portainer/portainer-ce:2.45.1
     container_name: portainer-server
     restart: unless-stopped
     command: -H tcp://docker-socket-proxy:2375

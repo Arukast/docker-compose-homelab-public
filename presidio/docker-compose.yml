@@ -7,7 +7,7 @@ x-logging: &default-logging
 
 services:
   presidio-analyzer:
-    image: ghcr.io/data-privacy-stack/presidio-analyzer:latest
+    image: ghcr.io/data-privacy-stack/presidio-analyzer:2.2.363
     container_name: ${PRESIDIO_ANALYZER_CONTAINER_NAME:-presidio-analyzer}
     restart: unless-stopped
     security_opt:
@@ -36,7 +36,7 @@ services:
           memory: 768m
 
   presidio-anonymizer:
-    image: ghcr.io/data-privacy-stack/presidio-anonymizer:latest
+    image: ghcr.io/data-privacy-stack/presidio-anonymizer:2.2.363
     container_name: ${PRESIDIO_ANONYMIZER_CONTAINER_NAME:-presidio-anonymizer}
     restart: unless-stopped
     security_opt:

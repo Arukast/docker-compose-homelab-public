@@ -1,6 +1,6 @@
 services:
   portainer_agent:
-    image: portainer/agent:latest
+    image: portainer/agent:2.39.8
     container_name: portainer-agent
     restart: unless-stopped
     security_opt:

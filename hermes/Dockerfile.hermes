@@ -1,4 +1,4 @@
-FROM nousresearch/hermes-agent:latest
+FROM nousresearch/hermes-agent:v0.21.4
 
 USER root
 RUN apt-get update && apt-get install -y curl git && \

@@ -1,6 +1,6 @@
 services:
   cloudflared:
-    image: cloudflare/cloudflared:latest
+    image: cloudflare/cloudflared:2026.9.1
     container_name: ${CLOUDFLARED_CONTAINER_NAME}
     restart: unless-stopped
     security_opt:

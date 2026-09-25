@@ -1,0 +1,57 @@
+name: Continuous Deployment
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, dedicated-runner]
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Deploy Updated Services
+        env:
+          TARGET_USER: "deployer" # Set to the Linux user on target LXCs
+          HOSTS_FILE: "/etc/homelab/hosts.env"
+        run: |
+          # Determine commit boundary range
+          BEFORE_SHA="${{ github.event.before }}"
+          if [ -z "$BEFORE_SHA" ] || [ "$BEFORE_SHA" = "0000000000000000000000000000000000000000" ]; then
+            BEFORE_SHA="HEAD~1"
+          fi
+
+          # Detect top-level folders modified within the push
+          CHANGED_DIRS=$(git diff --name-only "$BEFORE_SHA" "$GITHUB_SHA" | grep '/' | cut -d/ -f1 | sort -u)
+
+          for DIR in $CHANGED_DIRS; do
+            # Extract space-separated list of target IPs for the service directory
+            TARGET_HOSTS=$(grep -E "^${DIR}=" "$HOSTS_FILE" | cut -d '=' -f2 | tr -d '"'\'')
+
+            if [ -n "$TARGET_HOSTS" ]; then
+              for TARGET_HOST in $TARGET_HOSTS; do
+                echo "==> Deploying '$DIR' to $TARGET_USER@$TARGET_HOST..."
+                ssh -o StrictHostKeyChecking=accept-new "$TARGET_USER@$TARGET_HOST" "/opt/docker/docker-compose-homelab/$DIR"
+              done
+            else
+              echo "Skipping '$DIR': No IP mapping found in $HOSTS_FILE"
+            fi
+          done
+
+  sync-to-public:
+      needs: deploy
+      runs-on: ubuntu-latest
+      steps:
+        - name: Checkout Private Repo
+          uses: actions/checkout@v4
+          with:
+            fetch-depth: 0
+
+        - name: Push to Public Mirror
+          run: |
+            git remote add public https://x-access-token:${{ secrets.PUBLIC_REPO_SYNC_TOKEN }}@github.com/Arukast/docker-compose-homelab-public.git
+            git push public main --force

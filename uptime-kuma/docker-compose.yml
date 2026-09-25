@@ -1,6 +1,6 @@
 services:
   uptime-kuma:
-    image: louislam/uptime-kuma:2
+    image: louislam/uptime-kuma:2.5.5
     container_name: ${UPTIME_KUMA_CONTAINER_NAME}
     restart: unless-stopped
     security_opt:
