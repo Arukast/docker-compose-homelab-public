@@ -46,12 +46,14 @@ jobs:
       needs: deploy
       runs-on: ubuntu-latest
       steps:
-        - name: Checkout Private Repo
+        - name: Checkout Private Repository
           uses: actions/checkout@v4
           with:
             fetch-depth: 0
 
-        - name: Push to Public Mirror
+        - name: Push to Public Repository Mirror
           run: |
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
             git remote add public https://x-access-token:${{ secrets.PUBLIC_REPO_SYNC_TOKEN }}@github.com/Arukast/docker-compose-homelab-public.git
             git push public main --force
