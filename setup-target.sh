@@ -13,7 +13,7 @@ RUNNER_PUB_KEY="$3"
 
 TARGET_USER="deployer"
 TARGET_HOME="/home/$TARGET_USER"
-BASE_DIR="/opt/docker-compose-homelab"
+BASE_DIR="/opt/docker/docker-compose-homelab"
 DEPLOY_SCRIPT="/usr/local/bin/deploy-service.sh"
 
 echo "==> 1. Creating target user '$TARGET_USER' if missing..."
@@ -23,13 +23,11 @@ if ! id "$TARGET_USER" &>/dev/null; then
 fi
 
 echo "==> 2. Checking dependencies..."
-# Ensure Docker is already installed on the LXC
 if ! command -v docker &> /dev/null; then
-    echo "Error: Docker is not installed on this host. Please install Docker first."
+    echo "Error: Docker is not installed on this host. Install Docker first."
     exit 1
 fi
 
-# Install git or curl only if missing
 MISSING_PKGS=()
 for pkg in git curl; do
     if ! command -v "$pkg" &> /dev/null; then
@@ -88,7 +86,7 @@ chown -R "$TARGET_USER:$TARGET_USER" "$SSH_DIR"
 echo "==> 5. Setting up sparse checkout..."
 mkdir -p "$BASE_DIR"
 
-# Allow both root and deployer to execute git commands in $BASE_DIR
+# Configure safe directory for both root and deployer before git operations
 git config --global --add safe.directory "$BASE_DIR" || true
 su - "$TARGET_USER" -c "git config --global --add safe.directory '$BASE_DIR'" || true
 
@@ -102,9 +100,8 @@ else
     git pull origin main
 fi
 
-# Hand over ownership to the deployer user
-echo "==> Setting permissions and safe directory for $TARGET_USER..."
+echo "==> 6. Enforcing ownership and safe directory permissions..."
 chown -R "$TARGET_USER:$TARGET_USER" "$BASE_DIR"
-su - "$TARGET_USER" -c "git config --global --add safe.directory '$BASE_DIR'""
+su - "$TARGET_USER" -c "git config --global --add safe.directory '$BASE_DIR'" || true
 
-echo "==> Setup complete for service(s): $SERVICE_NAMES"
+echo "==> Setup complete for service: $SERVICE_NAMES"
