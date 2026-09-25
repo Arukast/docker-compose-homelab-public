@@ -88,6 +88,10 @@ chown -R "$TARGET_USER:$TARGET_USER" "$SSH_DIR"
 echo "==> 5. Setting up sparse checkout..."
 mkdir -p "$BASE_DIR"
 
+# Allow both root and deployer to execute git commands in $BASE_DIR
+git config --global --add safe.directory "$BASE_DIR" || true
+su - "$TARGET_USER" -c "git config --global --add safe.directory '$BASE_DIR'" || true
+
 if [ ! -d "$BASE_DIR/.git" ]; then
     git clone --filter=blob:none --sparse "$REPO_URL" "$BASE_DIR"
     cd "$BASE_DIR"
@@ -98,6 +102,7 @@ else
     git pull origin main
 fi
 
+# Hand over ownership to the deployer user
 chown -R "$TARGET_USER:$TARGET_USER" "$BASE_DIR"
 su - "$TARGET_USER" -c "git config --global --add safe.directory '$BASE_DIR'"
 
