@@ -103,7 +103,8 @@ else
 fi
 
 # Hand over ownership to the deployer user
+echo "==> Setting permissions and safe directory for $TARGET_USER..."
 chown -R "$TARGET_USER:$TARGET_USER" "$BASE_DIR"
-su - "$TARGET_USER" -c "git config --global --add safe.directory '$BASE_DIR'"
+su - "$TARGET_USER" -c "git config --global --add safe.directory '$BASE_DIR'""
 
 echo "==> Setup complete for service(s): $SERVICE_NAMES"
