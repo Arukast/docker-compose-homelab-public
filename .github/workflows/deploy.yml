@@ -7,6 +7,7 @@ on:
 
 jobs:
   deploy:
+    if: github.repository == 'Arukast/docker-compose-homelab'
     runs-on: [self-hosted, dedicated-runner]
     steps:
       - name: Checkout Repository
@@ -43,17 +44,19 @@ jobs:
           done
 
   sync-to-public:
-      needs: deploy
-      runs-on: ubuntu-latest
-      steps:
-        - name: Checkout Private Repository
-          uses: actions/checkout@v4
-          with:
-            fetch-depth: 0
+    needs: deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Private Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-        - name: Push to Public Repository Mirror
-          run: |
-            git config user.name "github-actions[bot]"
-            git config user.email "github-actions[bot]@users.noreply.github.com"
-            git remote add public https://x-access-token:${{ secrets.PUBLIC_REPO_SYNC_TOKEN }}@github.com/Arukast/docker-compose-homelab-public.git
-            git push public main --force
+      - name: Push to Public Repository Mirror
+        env:
+          SYNC_TOKEN: ${{ secrets.PUBLIC_REPO_SYNC_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git remote add public "https://x-access-token:${SYNC_TOKEN}@github.com/Arukast/docker-compose-homelab-public.git"
+          git push public main --force
