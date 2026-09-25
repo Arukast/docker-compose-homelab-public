@@ -26,7 +26,7 @@ jobs:
           fi
 
           # Detect top-level folders modified within the push
-          CHANGED_DIRS=$(git diff --name-only "$BEFORE_SHA" "$GITHUB_SHA" | grep '/' | cut -d/ -f1 | sort -u)
+          CHANGED_DIRS=$(git diff --name-only "$BEFORE_SHA" "$GITHUB_SHA" | grep '/' | cut -d/ -f1 | grep -v '^\.' | sort -u)
 
           for DIR in $CHANGED_DIRS; do
             # Extract space-separated list of target IPs for the service directory
