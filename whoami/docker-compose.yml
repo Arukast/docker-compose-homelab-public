@@ -1,6 +1,6 @@
 services:
   whoami:
-    image: traefik/whoami:v1.11
+    image: traefik/whoami:v1.12
     container_name: whoami
     restart: unless-stopped
     networks:
