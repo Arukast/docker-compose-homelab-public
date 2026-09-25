@@ -2,23 +2,32 @@
 set -euo pipefail
 
 if [ "$#" -lt 3 ]; then
-  echo "Usage: $0 <service_folder_name> <git_repo_url> \"<runner_pub_key>\""
-  echo "Example: $0 adguard https://github.com/user/docker-compose-homelab.git \"ssh-ed25519 AAAAC3...\""
+  echo "Usage: $0 <service_folder_names> <git_repo_url> \"<runner_pub_key>\""
+  echo "Example: $0 \"adguard vaultwarden\" https://oauth2:TOKEN@github.com/user/repo.git \"ssh-ed25519 AAAAC3...\""
   exit 1
 fi
 
-SERVICE_NAME="$1"
+SERVICE_NAMES="$1"
 REPO_URL="$2"
 RUNNER_PUB_KEY="$3"
 
-BASE_DIR="/opt/docker/docker-compose-homelab"
+TARGET_USER="deployer"
+TARGET_HOME="/home/$TARGET_USER"
+BASE_DIR="/opt/docker-compose-homelab"
 DEPLOY_SCRIPT="/usr/local/bin/deploy-service.sh"
 
-echo "==> 1. Granting Docker permissions..."
-sudo usermod -aG docker "$USER"
+echo "==> 1. Creating target user '$TARGET_USER' if missing..."
+if ! id "$TARGET_USER" &>/dev/null; then
+    useradd -m -s /bin/bash "$TARGET_USER"
+    echo "User '$TARGET_USER' created."
+fi
 
-echo "==> 2. Creating restricted deployment script..."
-sudo tee "$DEPLOY_SCRIPT" > /dev/null << 'EOF'
+echo "==> 2. Installing Docker dependencies & adding '$TARGET_USER' to docker group..."
+apt update && apt install -y docker.io docker-compose-plugin git curl
+usermod -aG docker "$TARGET_USER"
+
+echo "==> 3. Creating restricted deployment script..."
+tee "$DEPLOY_SCRIPT" > /dev/null << 'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 
@@ -31,17 +40,19 @@ fi
 
 cd "$TARGET_DIR"
 git pull origin main
-docker compose pull || true                 # Continue if pull fails (local build)
-docker compose up -d --build --remove-orphans # Rebuilds local Dockerfiles if context changed
+docker compose pull || true
+docker compose up -d --build --remove-orphans
 docker image prune -f
 EOF
 
-sudo chmod +x "$DEPLOY_SCRIPT"
+chmod +x "$DEPLOY_SCRIPT"
 
-echo "==> 3. Setting up restricted SSH key authorization..."
-mkdir -p ~/.ssh
-chmod 700 ~/.ssh
-AUTH_KEYS=~/.ssh/authorized_keys
+echo "==> 4. Setting up restricted SSH key authorization for '$TARGET_USER'..."
+SSH_DIR="$TARGET_HOME/.ssh"
+AUTH_KEYS="$SSH_DIR/authorized_keys"
+
+mkdir -p "$SSH_DIR"
+chmod 700 "$SSH_DIR"
 touch "$AUTH_KEYS"
 chmod 600 "$AUTH_KEYS"
 
@@ -54,19 +65,21 @@ else
     echo "Key already present in $AUTH_KEYS."
 fi
 
-echo "==> 4. Setting up sparse checkout..."
-sudo mkdir -p "$BASE_DIR"
-sudo chown -R "$USER:$USER" "$BASE_DIR"
+chown -R "$TARGET_USER:$TARGET_USER" "$SSH_DIR"
 
-# Change this section in setup-target.sh:
+echo "==> 5. Setting up sparse checkout..."
+mkdir -p "$BASE_DIR"
+
 if [ ! -d "$BASE_DIR/.git" ]; then
     git clone --filter=blob:none --sparse "$REPO_URL" "$BASE_DIR"
     cd "$BASE_DIR"
-    git sparse-checkout set $SERVICE_NAME   # <-- Unquoted to expand multiple folder names
+    git sparse-checkout set $SERVICE_NAMES
 else
     cd "$BASE_DIR"
-    git sparse-checkout set $SERVICE_NAME   # <-- Unquoted
+    git sparse-checkout set $SERVICE_NAMES
     git pull origin main
 fi
 
-echo "==> Setup complete for service '$SERVICE_NAME'."
+chown -R "$TARGET_USER:$TARGET_USER" "$BASE_DIR"
+
+echo "==> Setup complete for service(s): $SERVICE_NAMES"
