@@ -17,7 +17,7 @@ jobs:
 
       - name: Deploy Updated Services
         env:
-          TARGET_USER: "deployer" # Set to the Linux user on target LXCs
+          TARGET_USER: "deployer"
           HOSTS_FILE: "/etc/homelab/hosts.env"
         run: |
           # Determine commit boundary range
@@ -30,13 +30,13 @@ jobs:
           CHANGED_DIRS=$(git diff --name-only "$BEFORE_SHA" "$GITHUB_SHA" | grep '/' | cut -d/ -f1 | grep -v '^\.' | sort -u)
 
           for DIR in $CHANGED_DIRS; do
-            # Extract space-separated list of target IPs for the service directory
-            TARGET_HOSTS=$(grep -E "^${DIR}=" "$HOSTS_FILE" | cut -d '=' -f2 | tr -d ' "' | tr -d "'")
+            # Extract space-separated list of target IPs without stripping spaces
+            TARGET_HOSTS=$(grep -E "^${DIR}=" "$HOSTS_FILE" | cut -d '=' -f2 | tr -d '"' | tr -d "'")
 
             if [ -n "$TARGET_HOSTS" ]; then
               for TARGET_HOST in $TARGET_HOSTS; do
                 echo "==> Deploying '$DIR' to $TARGET_USER@$TARGET_HOST..."
-                ssh -o StrictHostKeyChecking=accept-new "$TARGET_USER@$TARGET_HOST" "/opt/docker/docker-compose-homelab/$DIR"
+                ssh -o StrictHostKeyChecking=accept-new "$TARGET_USER@$TARGET_HOST" "$DIR"
               done
             else
               echo "Skipping '$DIR': No IP mapping found in $HOSTS_FILE"
