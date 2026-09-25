@@ -7,7 +7,7 @@ x-logging: &default-logging
 
 services:
   presidio-analyzer:
-    image: ghcr.io/data-privacy-stack/presidio-analyzer:2.2.363
+    image: ghcr.io/data-privacy-stack/presidio-analyzer:2.2.364
     container_name: ${PRESIDIO_ANALYZER_CONTAINER_NAME:-presidio-analyzer}
     restart: unless-stopped
     security_opt:
