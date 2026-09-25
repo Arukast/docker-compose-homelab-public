@@ -7,7 +7,7 @@ x-logging: &default-logging
 
 services:
   litellm-proxy:
-    image: ghcr.io/berriai/litellm:v1.102.1
+    image: ghcr.io/berriai/litellm:1.102.1
     container_name: ${LITELLM_PROXY_CONTAINER_NAME:-litellm-proxy}
     restart: unless-stopped
     security_opt:
