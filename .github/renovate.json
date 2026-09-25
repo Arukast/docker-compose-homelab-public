@@ -2,6 +2,8 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": ["config:recommended"],
   "dependencyDashboardApproval": false,
+  "prConcurrentLimit": 0,
+  "prHourlyLimit": 0,
   "enabledManagers": ["docker-compose", "dockerfile"],
   "packageRules": [
     {
