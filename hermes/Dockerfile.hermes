@@ -1,9 +1,11 @@
 FROM nousresearch/hermes-agent:v2026.9.24
 
 USER root
-RUN apt-get update && apt-get install -y curl git && \
+RUN apt-get update && apt-get install -y --no-install-recommends curl git && \
     curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
     apt-get install -y nodejs && \
-    npm install -g @anthropic-ai/claude-code@latest
+    npm install -g @anthropic-ai/claude-code@latest && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* /root/.npm /root/.cache
 
 WORKDIR /opt/data
