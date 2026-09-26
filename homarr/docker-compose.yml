@@ -12,6 +12,9 @@ services:
     environment:
       - SECRET_ENCRYPTION_KEY=${SECRET_ENCRYPTION_KEY}
       - AUTH_SECRET=${AUTH_SECRET}
+      - DOCKER_HOSTNAMES=${DOCKER_HOSTNAMES}
+      - DOCKER_PORTS=${DOCKER_PORTS}
+      - DOCKER_NAMES=${DOCKER_NAMES}
     volumes:
       - ./homarr/appdata:/appdata
       - /etc/localtime:/etc/localtime:ro
