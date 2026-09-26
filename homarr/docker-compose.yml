@@ -10,7 +10,8 @@ services:
     ports:
       - "${HOST_IP:-127.0.0.1}:7575:7575"
     environment:
-      - SECRET_ENCRYPTION_KEY=${HOMARR_SECRET_ENCRYPTION_KEY}
+      - SECRET_ENCRYPTION_KEY=${SECRET_ENCRYPTION_KEY}
+      - AUTH_SECRET=${AUTH_SECRET}
     volumes:
       - ./homarr/appdata:/appdata
       - /etc/localtime:/etc/localtime:ro
