@@ -47,7 +47,6 @@ tee "$DEPLOY_SCRIPT" > /dev/null << 'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Navigate to repo root first
 cd /opt/docker/docker-compose-homelab
 
 TARGET_DIR="${1:-}"
@@ -61,7 +60,9 @@ cd "$TARGET_DIR"
 git pull origin main
 docker compose pull || true
 docker compose up -d --build --remove-orphans
+
 docker image prune -f
+docker builder prune -f --filter "until=24h"
 EOF
 
 chmod +x "$DEPLOY_SCRIPT"
