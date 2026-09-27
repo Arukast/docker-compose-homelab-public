@@ -7,29 +7,30 @@
 # resolution works. So the weights are fetched here, at build time, and the
 # runtime container never needs the internet.
 #
+# Why a builder stage: the TEI image is Rust (text-embeddings-router) and has no
+# python3, so huggingface_hub cannot be run in it. Download in a python image,
+# then COPY the result across. The final image carries no python.
+#
 # Cost: ~2.3GB added to the image. The payoff is that the container keeps
 # internal-only network isolation and has no bootstrap step -- no manual
-# snapshot_download, no half-populated cache that only works if the previous
-# run got far enough.
-FROM ghcr.io/huggingface/text-embeddings-inference:cpu-1.8
+# snapshot_download, no half-populated cache that only works if the previous run
+# got far enough.
+FROM python:3.12-slim AS model-fetch
 
-# --model-id points at a local directory, which TEI accepts instead of a Hub
-# id. Everything else in the compose command stays the same.
-ENV TEI_MODEL_ID=/model
-
-# Downloaded to /model, which the compose file mounts from ./tei-model.
-# Single-layer so the 2.3GB is not duplicated in the image history.
-RUN --mount=type=cache,target=/root/.cache/huggingface \
-    python3 -c "\
+# Verify the snapshot BEFORE it gets copied into the final image. A truncated
+# download would otherwise surface as a crash-loop hours later, and the cause
+# is not obvious from TEI's startup logs.
+RUN python3 -c "\
 from huggingface_hub import snapshot_download; \
 snapshot_download('BAAI/bge-m3', local_dir='/model')" \
- && rm -rf /model/.cache
-
-# Sanity check at BUILD time: if the snapshot is incomplete the build fails here
-# rather than crash-looping the service later. en_core is irrelevant here -- this
-# only proves the tokenizer and config load.
-RUN python3 -c "\
+ && python3 -c "\
 from transformers import AutoTokenizer, AutoConfig; \
 AutoTokenizer.from_pretrained('/model'); \
 AutoConfig.from_pretrained('/model'); \
 print('model files verified')"
+
+FROM ghcr.io/huggingface/text-embeddings-inference:cpu-1.8
+
+# --model-id points at this local directory, which TEI accepts instead of a Hub
+# id. Everything else in the compose command stays the same.
+COPY --from=model-fetch /model /model
