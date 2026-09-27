@@ -30,6 +30,8 @@ services:
       - MACHINE_ID_SALT=${MACHINE_ID_SALT}
       - REDIS_URL=${REDIS_URL:-redis://redis:6379}
       - SEARXNG_BASE_URL=${SEARXNG_BASE_URL:-http://searxng:8080}
+      # Try to fix heavy long chat claude code
+      - OMNIROUTE_CHAT_MAX_HEAVY_IN_FLIGHT=2
     healthcheck:
       test: ["CMD", "node", "healthcheck.mjs"]
       interval: 30s
@@ -43,8 +45,7 @@ services:
     deploy:
       resources:
         limits:
-          # 1g OOM-killed it; steady state is ~1.5G
-          memory: 2g
+          memory: 4g
 
   redis:
     image: redis:8-alpine
