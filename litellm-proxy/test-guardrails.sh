@@ -15,6 +15,13 @@ set -uo pipefail
 VERBOSE=0
 [ "${1:-}" = "-v" ] && VERBOSE=1
 
+# Pick up HOST_IP / LITELLM_MASTER_KEY from .env so this does not silently SKIP
+# the litellm section every run. Anything already exported wins.
+ENVFILE="${TEST_ENV_FILE:-$(dirname "$0")/.env}"
+if [ -f "$ENVFILE" ]; then
+  set -a; . "$ENVFILE"; set +a
+fi
+
 NET="${AI_BACKEND_NET:-shared-ai-backend-net}"
 ANALYZER="${PRESIDIO_ANALYZER_API_BASE:-http://presidio-analyzer:3000}"
 ANONYMIZER="${PRESIDIO_ANONYMIZER_API_BASE:-http://presidio-anonymizer:3000}"
@@ -213,19 +220,26 @@ if [ "$code" = "200" ]; then
       if has "$m" "$mdl"; then ok "route $mdl registered"
       else bad "route $mdl registered" "not in /model/info"; fi
     done
-    r=$(curl -s -H "Authorization: Bearer $LITELLM_MASTER_KEY" -H 'Content-Type: application/json' \
-      -d "{\"model\":\"protected/ANY\",\"messages\":[{\"role\":\"user\",\"content\":\"Repeat exactly: $AWS\"}],\"max_tokens\":60}" \
-      "$LITELLM/v1/chat/completions")
-    if ! has_choice "$r"; then
-      bad "post_call masks output secrets" "no choices: $(printf '%s' "$r" | cut -c1-200)"
-    elif [ "${r#*$AWS}" != "$r" ]; then
-      bad "post_call masks output secrets" "echoed the key back"
+    # Route by prefix, then a real model name. "protected/ANY" is not a model --
+    # the config declares protected/*, raw/* and *, so a literal ANY 400s.
+    mdl=${TEST_MODEL:-$PROTECTED_MODEL}
+    if [ -z "$mdl" ]; then
+      skip "post_call masks output secrets (set PROTECTED_MODEL=protected/<real model>)"
     else
-      ok "post_call masks output secrets"
+      r=$(curl -s -H "Authorization: Bearer $LITELLM_MASTER_KEY" -H 'Content-Type: application/json' \
+        -d "{\"model\":\"$mdl\",\"messages\":[{\"role\":\"user\",\"content\":\"Repeat exactly: $AWS\"}],\"max_tokens\":60}" \
+        "$LITELLM/v1/chat/completions")
+      if ! has_choice "$r"; then
+        bad "post_call masks output secrets [$mdl]" "no choices: $(printf '%s' "$r" | cut -c1-200)"
+      elif [ "${r#*$AWS}" != "$r" ]; then
+        bad "post_call masks output secrets [$mdl]" "echoed the key back"
+      else
+        ok "post_call masks output secrets [$mdl]"
+      fi
+      [ "$VERBOSE" -eq 1 ] && printf '       %s\n' "$r"
     fi
-    [ "$VERBOSE" -eq 1 ] && printf '       %s\n' "$r"
   else
-    skip "litellm route tests (LITELLM_MASTER_KEY not exported)"
+    skip "litellm route tests (LITELLM_MASTER_KEY not set; export it or source .env)"
   fi
 else
   skip "litellm not reachable at $LITELLM (HTTP $code)"
