@@ -127,7 +127,7 @@ SLACK="xoxb-$(rep 1 10)-$(rep a 24)"
 AGE="AGE-SECRET-KEY-1$(rep q 58)"
 MAIL="a$(rep b 8)@example.com"
 CARD="$(rstr 4111 4)"
-SSN="[SSN]"
+SSN="123-45-6789"
 
 # want=ANY means "detected something": built-in entity names shift between
 # presidio versions (CREDIT_CARD vs CREDIT_DEBIT_CARD_NUMBER).
