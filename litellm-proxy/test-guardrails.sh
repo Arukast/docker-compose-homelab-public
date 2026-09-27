@@ -194,7 +194,10 @@ SKOR="sk-or-v1-$(rstr 01234567 8)"
 SLACK="xoxb-$(rep 1 10)-$(rep a 24)"
 AGE="AGE-SECRET-KEY-1$(rep q 58)"
 MAIL="a$(rep b 8)@example.com"
-CARD="$(rstr 4111 4)"
+# Luhn-VALID card. `rstr 4111 4` yields 4111411141114111, which fails the Luhn
+# check, so CreditCardRecognizer rightly scores it 0 -- a valid recognizer
+# looks exactly like a broken one. Standard Visa test number.
+CARD="$(rep 4 1)$(rep 1 15)"
 SSN="my social security number is $(rstr 123 3)"  # rstr repeats the WHOLE string, so 123 x3 = 9 digits
 
 # want=ANY means "detected something": built-in entity names shift between
