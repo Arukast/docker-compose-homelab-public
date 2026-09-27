@@ -223,11 +223,14 @@ if [ "$code" = "200" ]; then
       esac
     done
     # Test an actual route. "protected/ANY" is not a model -- the config
-    # declares protected/*, raw/* and *, so a literal ANY 400s. Pull a real name
-    # out of /model/info; a transcription model would return no text to mask.
-    models=$(printf '%s' "$m" | tr ',' '\n' | grep -o '"model_name":"protected/[^"]*"' \
-             | cut -d'"' -f4 | grep -Ev 'transcribe|whisper|tts|embed|image' | head -1)
-    [ -z "$models" ] && models=${TEST_MODEL:-$PROTECTED_MODEL}
+    # declares protected/*, raw/* and *, so a literal ANY 400s. An explicit
+    # model wins: /model/info lists every route including ones whose upstream
+    # is dead (gpt-5.2 returns empty), so auto-picking the first is unreliable.
+    models=${TEST_MODEL:-${PROTECTED_MODEL:-}}
+    if [ -z "$models" ]; then
+      models=$(printf '%s' "$m" | tr ',' '\n' | grep -o '"model_name":"protected/[^"]*"' \
+               | cut -d'"' -f4 | grep -Ev 'transcribe|whisper|tts|embed|image' | head -1)
+    fi
     for mdl in $models; do
       # Guard attached to THIS model? /model/info is the only place that shows
       # the resolved guardrail list, and a route can silently lose it.

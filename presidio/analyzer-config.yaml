@@ -8,7 +8,11 @@
 # nlp_configuration, recognizer_registry.
 supported_languages:
   - en
-default_score_threshold: 0
+# 0 let noise through: UsBankRecognizer scores 0.05 and UsLicenseRecognizer 0.01
+# on any 13+ digit run, so a Unix timestamp came back as a US_BANK_NUMBER. Every
+# real detection scores far higher (CREDIT_CARD 1.0, the custom SECRET_KEY
+# patterns 0.75-1.0), so 0.4 drops the noise and keeps all of them.
+default_score_threshold: 0.4
 nlp_configuration:
   nlp_engine_name: spacy
   models:
