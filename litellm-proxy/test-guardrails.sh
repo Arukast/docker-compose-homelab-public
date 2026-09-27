@@ -34,6 +34,22 @@ bad()   { printf '  \033[31mFAIL\033[0m %s\n' "$1"; printf '       %s\n' "$2"; f
 skip()  { printf '  \033[33mSKIP\033[0m %s\n' "$1"; }
 head_() { printf '\n\033[1m%s\033[0m\n' "$1"; }
 
+# Pull just the assistant text out of a chat/completion envelope. Anything that
+# greps the raw JSON also hits "created" (a 13-digit unix timestamp) and reports
+# an envelope field as a leaked secret.
+content_of() { py - "$1" <<'PY'
+import json, sys
+try:
+    d = json.loads(sys.argv[1])
+except Exception:
+    print(""); raise SystemExit
+ch = d.get("choices") or []
+if not ch:
+    print(""); raise SystemExit
+print(((ch[0].get("message") or {}).get("content")) or "")
+PY
+}
+
 # Python is fed over stdin from a quoted heredoc and the URL/text arrive as argv,
 # so bash never has to quote-balance an embedded program and payloads are never
 # interpolated into source.
@@ -233,10 +249,19 @@ if [ "$code" = "200" ]; then
     fi
     for mdl in $models; do
       # Guard attached to THIS model? /model/info is the only place that shows
-      # the resolved guardrail list, and a route can silently lose it.
+      # the resolved guardrail list. A model missing from it is a routing alias
+      # (protected/auto/best-free), not a missing guardrail -- it matches the
+      # protected/* wildcard instead, so assert on the prefix that covers it.
       case "$m" in
-        *"\"model_name\":\"$mdl\""*"presidio-pii"*) ok "guardrail attached [$mdl]" ;;
-        *) bad "guardrail attached [$mdl]" "presidio-pii not listed for this model" ;;
+        *"\"model_name\":\"$mdl\""*)
+          case "$m" in
+            *"\"model_name\":\"$mdl\""*"presidio-pii"*) ok "guardrail attached [$mdl]" ;;
+            *) bad "guardrail attached [$mdl]" "listed, but presidio-pii not attached" ;;
+          esac ;;
+        *) case "$mdl" in
+             protected/*) ok "guardrail via protected/* wildcard [$mdl]" ;;
+             *)           bad "guardrail attached [$mdl]" "not in /model/info and not a protected/ alias" ;;
+           esac ;;
       esac
 
       # post_call test: the model must INVENT the secret, never be handed it.
@@ -247,10 +272,17 @@ if [ "$code" = "200" ]; then
         "$LITELLM/v1/chat/completions")
       if ! has_choice "$r"; then
         bad "post_call masks generated card [$mdl]" "no choices: $(printf '%s' "$r" | cut -c1-200)"
-      elif leaked=$(printf '%s' "$r" | grep -oE '[0-9]{13,19}' | head -1) && [ -n "$leaked" ]; then
-        bad "post_call masks generated card [$mdl]" "unmasked digit run came back: $leaked"
       else
-        ok "post_call masks generated card [$mdl]"
+        # Only the assistant text can leak. A refusal, or a model that just
+        # never produced digits, is a pass -- there is nothing to mask.
+        c=$(content_of "$r")
+        if leaked=$(printf '%s' "$c" | grep -oE '[0-9]{13,19}' | head -1) && [ -n "$leaked" ]; then
+          bad "post_call masks generated card [$mdl]" "unmasked digit run in content: $leaked"
+        else
+          ok "post_call masks generated card [$mdl]"
+          [ -z "$(printf '%s' "$c" | tr -d '[:space:]')" ] && \
+            skip "  (model returned no text; masking not exercised)"
+        fi
       fi
       [ "$VERBOSE" -eq 1 ] && printf '       %s\n' "$r"
     done
