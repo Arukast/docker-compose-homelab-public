@@ -1,0 +1,45 @@
+# Analyzer SERVER config (ANALYZER_CONF_FILE). Not the registry -- that lives in
+# secret_recognizers.yaml via ANALYZER_REGISTRY_CONF_FILE, and the loader reads it
+# from presidio_analyzer/conf/default_recognizers.yaml unless told otherwise.
+#
+# Key names follow this image's loader, NOT the stale conf/default.yaml -- that file
+# uses nlp_engine_name / models at top level and the worker exits code 3 on it.
+# Valid top-level keys: supported_languages, default_score_threshold,
+# nlp_configuration, recognizer_registry.
+supported_languages:
+  - en
+default_score_threshold: 0
+nlp_configuration:
+  nlp_engine_name: spacy
+  models:
+    - lang_code: en
+      model_name: en_core_web_lg
+  ner_model_configuration:
+    model_to_presidio_entity_mapping:
+      PER: PERSON
+      PERSON: PERSON
+      NORP: NRP
+      FAC: LOCATION
+      LOC: LOCATION
+      LOCATION: LOCATION
+      GPE: LOCATION
+      ORG: ORGANIZATION
+      ORGANIZATION: ORGANIZATION
+      DATE: DATE_TIME
+      TIME: DATE_TIME
+    low_confidence_score_multiplier: 0.4
+    low_score_entity_names:
+      -
+    labels_to_ignore:
+      - ORG
+      - ORGANIZATION # has many false positives
+      - CARDINAL
+      - EVENT
+      - LANGUAGE
+      - LAW
+      - MONEY
+      - ORDINAL
+      - PERCENT
+      - PRODUCT
+      - QUANTITY
+      - WORK_OF_ART

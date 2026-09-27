@@ -14,11 +14,18 @@ services:
       - no-new-privileges:true
     <<: *default-logging
     volumes:
+      # Two separate configs: the server config (nlp engine) and the recognizer
+      # registry. The loader ignores a `recognizer_registry` key placed in the
+      # server config, and reads the registry from the image's own
+      # conf/default_recognizers.yaml unless ANALYZER_REGISTRY_CONF_FILE says
+      # otherwise -- so custom patterns silently vanish without the second var.
+      - ./analyzer-config.yaml:/app/config/analyzer-config.yaml:ro
       - ./secret_recognizers.yaml:/app/config/secret_recognizers.yaml:ro
       - /etc/localtime:/etc/localtime:ro
       - /etc/timezone:/etc/timezone:ro
     environment:
-      - ANALYZER_CONF_FILE=${ANALYZER_CONF_FILE:-/app/config/secret_recognizers.yaml}
+      - ANALYZER_CONF_FILE=${ANALYZER_CONF_FILE:-/app/config/analyzer-config.yaml}
+      - ANALYZER_REGISTRY_CONF_FILE=${ANALYZER_REGISTRY_CONF_FILE:-/app/config/secret_recognizers.yaml}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
       interval: 30s
