@@ -18,7 +18,7 @@ services:
   # EMBED_MODEL is not read from .env (there is none); override by exporting it
   # before `docker compose up`, which rewrites nothing on disk.
   model-fetch:
-    image: python:3.12-slim
+    image: python:3.14-slim
     container_name: ${TEI_FETCH_CONTAINER_NAME:-tei-model-fetch}
     restart: "no"
     security_opt:
