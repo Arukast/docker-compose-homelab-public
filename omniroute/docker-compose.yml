@@ -45,7 +45,9 @@ services:
     deploy:
       resources:
         limits:
-          memory: 4g
+          # was 4g, uses ~1.5GiB. 2.5g covers a long concurrent-chat spike
+          # without eating half the LXC.
+          memory: 2500m
 
   redis:
     image: redis:8-alpine

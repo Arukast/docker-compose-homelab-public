@@ -40,7 +40,9 @@ services:
     deploy:
       resources:
         limits:
-          memory: 5g
+          # was 5g. Uses ~1.0GiB idle; 2g leaves headroom for a big RAG/index
+          # load without letting it starve the rest of the LXC.
+          memory: 2g
 
 networks:
   ai-net:

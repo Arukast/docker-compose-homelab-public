@@ -37,6 +37,11 @@ services:
       timeout: 5s
       retries: 3
       start_period: 5s
+    deploy:
+      resources:
+        limits:
+          # no limit before -> unbounded. Uses ~20MiB.
+          memory: 128m
 
 networks:
   socket-proxy-net:

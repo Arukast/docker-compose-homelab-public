@@ -40,8 +40,10 @@ services:
     deploy:
       resources:
         limits:
-          # was 768m; the analyzer holds spaCy model weights in RAM
-          memory: 1g
+          # en_core_web_lg is ~800MB of weights and loads fully resident, so this
+          # must clear 1g or the worker is OOM-killed on first request. 2g covers
+          # the model plus request-time headroom.
+          memory: 2g
 
   presidio-anonymizer:
     image: ghcr.io/data-privacy-stack/presidio-anonymizer:2.2.364

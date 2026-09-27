@@ -61,17 +61,27 @@ PY
 }
 
 analyze_raw() { py "$ANALYZER/analyze" "${1:-hi}" <<'PY'
-import json, sys, urllib.request
+import json, sys, urllib.request, urllib.error
 url, text = sys.argv[1], sys.argv[2]
 req = urllib.request.Request(url, json.dumps({'text': text, 'language': 'en'}).encode(),
                              {'Content-Type': 'application/json'})
-print(json.dumps(json.load(urllib.request.urlopen(req, timeout=60)), indent=2))
+try:
+    print(json.dumps(json.load(urllib.request.urlopen(req, timeout=60)), indent=2))
+except urllib.error.HTTPError as e:
+    print('HTTP', e.code); print(e.read().decode('utf-8', 'replace'))
+except Exception as e:
+    print('unreachable:', e)
 PY
 }
 
 entities() { py "$ANALYZER/supportedentities" <<'PY'
-import json, sys, urllib.request
-d = json.load(urllib.request.urlopen(sys.argv[1], timeout=60))
+import json, sys, urllib.request, urllib.error
+try:
+    d = json.load(urllib.request.urlopen(sys.argv[1], timeout=60))
+except urllib.error.HTTPError as e:
+    print('HTTP', e.code); raise SystemExit
+except Exception as e:
+    print('unreachable:', e); raise SystemExit
 for lang, ents in (d.items() if isinstance(d, dict) else [('en', d)]):
     print(lang + ':', ' '.join(ents))
 PY
@@ -136,7 +146,11 @@ wait_up() {  # $1 = name, $2 = url
     py "$2/health" </dev/null >/dev/null 2>&1 && return 0
     sleep 2
   done
-  bad "$1 reachable" "no answer from $2 after 120s"
+  # Say why it is down -- an unreachable container and a broken recognizer look
+  # identical from the outside otherwise.
+  state=$(docker inspect -f '{{.State.Status}} oom={{.State.OOMKilled}} restarts={{.RestartCount}}' \
+            "${PRESIDIO_ANALYZER_CONTAINER_NAME:-presidio-analyzer}" 2>&1 | tail -1)
+  bad "$1 reachable" "no answer from $2 after 120s [$state]"
   return 1
 }
 wait_up analyzer "$ANALYZER"    || { printf '\n%d passed, %d failed\n' "$pass" "$fail"; exit 1; }

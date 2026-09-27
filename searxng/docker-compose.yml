@@ -35,7 +35,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 256m
+          # was 256m; searxng rate-limits and caches in-process, 384m is safer
+          memory: 384m
 
 networks:
   ai-net:

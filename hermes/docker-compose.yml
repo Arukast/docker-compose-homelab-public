@@ -42,7 +42,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512m
+          # was 512m, running at 61.7% -- close to OOM on a busy agent turn
+          memory: 768m
 
 networks:
   ai-net:
