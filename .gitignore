@@ -10,3 +10,6 @@ dashboard/homarr
 *.swo
 *~
 .DS_Store
+
+# Get ignored for now because the workflows is not supported
+glances/glances/glances.conf
