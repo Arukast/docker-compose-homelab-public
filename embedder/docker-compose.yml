@@ -6,31 +6,72 @@ x-logging: &default-logging
       max-file: "3"
 
 services:
-  # Separate from open-webui on purpose: bge-m3 is ~2.3GB of weights, and
-  # sentence-transformers loads it INSIDE the open-webui process, which is what
-  # pushed that container to a 5g limit. Here it is its own container with its
-  # own ceiling and its own restart, so an embedding request cannot OOM-kill
-  # your chat UI.
+  # One-shot model download. Runs on ai-net, which has a route out; the
+  # shared-ai-backend-net is created with --internal, so nothing on it can
+  # resolve huggingface.co ("Network is unreachable"). It exits 0 and stays
+  # exited, and `service_completed_successfully` below gates the server on it.
   #
-  # Reached only over the internal backend network -- no host port. The only
-  # client is open-webui.
+  # Idempotent: the guard exits before touching the network once the weights are
+  # on disk, so a redeploy costs a container start rather than a 2.3GB pull.
+  # This is what lets a 2.3GB model live outside the image -- `docker compose up
+  # --build` in deploy-service.sh was exhausting the disk on the export step.
+  # EMBED_MODEL is not read from .env (there is none); override by exporting it
+  # before `docker compose up`, which rewrites nothing on disk.
+  model-fetch:
+    image: python:3.12-slim
+    container_name: ${TEI_FETCH_CONTAINER_NAME:-tei-model-fetch}
+    restart: "no"
+    security_opt:
+      - no-new-privileges:true
+    <<: *default-logging
+    networks: [ai-net]
+    volumes:
+      - tei-model:/model
+    command:
+      - sh
+      - -c
+      - |
+        if [ -f /model/config.json ]; then
+          echo "bge-m3 already in volume, skipping download"
+          exit 0
+        fi
+        pip install --no-cache-dir -q huggingface_hub
+        python -c "from huggingface_hub import snapshot_download; \
+        snapshot_download('${EMBED_MODEL:-BAAI/bge-m3}', local_dir='/model')"
+        echo "model downloaded"
+    deploy:
+      resources:
+        limits:
+          # pip install pulls torch-adjacent wheels; 1g is enough for the
+          # download+extract and stops a bad day from eating the LXC.
+          memory: 1g
+
+  # Separate from open-webui on purpose: bge-m3 is ~2.3GB of weights, and
+  # sentence-transformers would otherwise load it INSIDE the open-webui process,
+  # which is what pushed that container to a 5g limit. Here it is its own
+  # container with its own ceiling and its own restart, so an embedding request
+  # cannot OOM-kill your chat UI.
+  #
+  # Internal network only: by the time it starts, the weights are already in the
+  # tei-model volume, so it never needs egress.
   text-embeddings-inference:
-    build:
-      context: .
-      dockerfile: Dockerfile.tei
-    image: local/text-embeddings-inference:bge-m3
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.8
     container_name: ${TEI_CONTAINER_NAME:-text-embeddings-inference}
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true
     <<: *default-logging
+    depends_on:
+      model-fetch:
+        condition: service_completed_successfully
     volumes:
+      - tei-model:/model:ro
       - ./tei-cache:/data
       - /etc/localtime:/etc/localtime:ro
     command:
-      # Local path, NOT a Hub id. See Dockerfile.tei: the runtime container sits
-      # on an --internal network with no route out, so it can never download a
-      # model. The weights are baked in at build time instead.
+      # Local path, not a Hub id: the runtime container is on an --internal
+      # network and could never download a model. Verified against --help, which
+      # accepts "a local directory ... as saved by save_pretrained".
       - --model-id
       - /model
       # bge-m3 is a CLS-pooled model. The wrong pooling silently returns garbage
@@ -43,17 +84,17 @@ services:
       - --dtype
       - float32
       # No --normalize: cpu-1.8 rejects it outright ("unexpected argument") and
-      # the container crash-loops on boot. Verify any further flag against
-      # `docker compose run --rm text-embeddings-inference --help` before adding
-      # it -- an unrecognised flag takes the whole service down, and when TEI is
-      # down open-webui silently falls back to downloading the model itself.
+      # the container crash-loops on boot. Check any new flag with
+      # `docker compose run --rm text-embeddings-inference --help` first -- an
+      # unrecognised flag takes the service down, and while TEI is down
+      # open-webui silently falls back to downloading the model itself.
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:80/health || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
-      # The image pulls and loads ~2.3GB of weights on first boot. start_period
-      # must outlast that or the container is marked unhealthy during startup.
+      # Loading 2.3GB of weights from the volume into RAM. start_period must
+      # outlast it or the container is marked unhealthy mid-startup.
       start_period: 300s
     networks: [ai-backend-net]
     deploy:
@@ -62,7 +103,14 @@ services:
           # Weights ~2.3GB, resident ~2.5GB with tokenization overhead.
           memory: 3g
 
+volumes:
+  # Named, not a bind mount: the deployer user must not need write access to the
+  # repo checkout to update the model.
+  tei-model:
+
 networks:
+  ai-net:
+    external: true
   ai-backend-net:
     external: true
     name: shared-ai-backend-net
