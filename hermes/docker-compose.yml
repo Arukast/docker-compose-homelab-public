@@ -26,7 +26,8 @@ services:
       - /etc/timezone:/etc/timezone:ro
     environment:
       - OPENAI_BASE_URL=${OPENAI_BASE_URL:-http://litellm-proxy:4000/v1}
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      # Must be litellm-proxy's LITELLM_MASTER_KEY, not OmniRoute's key
+      - OPENAI_API_KEY=${LITELLM_API_KEY}
       - HERMES_DASHBOARD=${HERMES_DASHBOARD:-true}
       - HERMES_DASHBOARD_BASIC_AUTH_USERNAME=${HERMES_DASHBOARD_BASIC_AUTH_USERNAME}
       - HERMES_DASHBOARD_BASIC_AUTH_PASSWORD=${HERMES_DASHBOARD_BASIC_AUTH_PASSWORD}

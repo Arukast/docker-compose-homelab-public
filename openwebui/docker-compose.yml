@@ -23,7 +23,8 @@ services:
     environment:
       - HF_HOME=/app/backend/data/cache/embedding/models
       - OPENAI_API_BASE_URL=${OPENAI_API_BASE_URL:-http://litellm-proxy:4000/v1}
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      # Must be litellm-proxy's LITELLM_MASTER_KEY, not OmniRoute's key
+      - OPENAI_API_KEY=${LITELLM_API_KEY}
       # Local CPU-based RAG configuration
       - RAG_EMBEDDING_MODEL=${RAG_EMBEDDING_MODEL:-BAAI/bge-m3}
       - ENABLE_WEB_SEARCH=${ENABLE_WEB_SEARCH:-true}
