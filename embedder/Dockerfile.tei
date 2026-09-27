@@ -1,0 +1,35 @@
+# TEI with bge-m3 baked in.
+#
+# Why build instead of `image:` + download-at-boot: shared-ai-backend-net is
+# created with --internal, so a RUNNING container on it has no route out
+# ("Network is unreachable") and cannot resolve huggingface.co at all. `docker
+# build` does not use that network -- it runs on the default bridge, where
+# resolution works. So the weights are fetched here, at build time, and the
+# runtime container never needs the internet.
+#
+# Cost: ~2.3GB added to the image. The payoff is that the container keeps
+# internal-only network isolation and has no bootstrap step -- no manual
+# snapshot_download, no half-populated cache that only works if the previous
+# run got far enough.
+FROM ghcr.io/huggingface/text-embeddings-inference:cpu-1.8
+
+# --model-id points at a local directory, which TEI accepts instead of a Hub
+# id. Everything else in the compose command stays the same.
+ENV TEI_MODEL_ID=/model
+
+# Downloaded to /model, which the compose file mounts from ./tei-model.
+# Single-layer so the 2.3GB is not duplicated in the image history.
+RUN --mount=type=cache,target=/root/.cache/huggingface \
+    python3 -c "\
+from huggingface_hub import snapshot_download; \
+snapshot_download('BAAI/bge-m3', local_dir='/model')" \
+ && rm -rf /model/.cache
+
+# Sanity check at BUILD time: if the snapshot is incomplete the build fails here
+# rather than crash-looping the service later. en_core is irrelevant here -- this
+# only proves the tokenizer and config load.
+RUN python3 -c "\
+from transformers import AutoTokenizer, AutoConfig; \
+AutoTokenizer.from_pretrained('/model'); \
+AutoConfig.from_pretrained('/model'); \
+print('model files verified')"

@@ -15,33 +15,27 @@ services:
   # Reached only over the internal backend network -- no host port. The only
   # client is open-webui.
   text-embeddings-inference:
-    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.8
+    build:
+      context: .
+      dockerfile: Dockerfile.tei
+    image: local/text-embeddings-inference:bge-m3
     container_name: ${TEI_CONTAINER_NAME:-text-embeddings-inference}
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true
-    # Needed ONLY for the first boot, to pull bge-m3 from Hugging Face. The
-    # shared-ai-backend-net resolver returns SERVFAIL for huggingface.co, so the
-    # container cannot download its own model without this -- every other image
-    # in the stack pulled fine because Docker resolves registry names through the
-    # host, not the container.
-    # Safe to drop once ./tei-cache holds the weights: the model is then read
-    # from disk and no network is touched. Test before removing --
-    # `docker compose logs | grep -i dns`.
-    dns:
-      - 1.1.1.1
-      - 9.9.9.9
     <<: *default-logging
     volumes:
       - ./tei-cache:/data
       - /etc/localtime:/etc/localtime:ro
     command:
+      # Local path, NOT a Hub id. See Dockerfile.tei: the runtime container sits
+      # on an --internal network with no route out, so it can never download a
+      # model. The weights are baked in at build time instead.
       - --model-id
-      # English + Indonesian both strong; 1024-dim, 8192-token context.
-      - ${EMBED_MODEL:-BAAI/bge-m3}
-      # bge-m3 is a CLS-pooled model. The wrong pooling silently returns
-      # garbage vectors that still *look* valid -- RAG just gets worse with no
-      # error anywhere.
+      - /model
+      # bge-m3 is a CLS-pooled model. The wrong pooling silently returns garbage
+      # vectors that still *look* valid -- RAG just gets worse with no error
+      # anywhere.
       - --pooling
       - cls
       # cpu-1.8 accepts float16|float32 (verified via --help). float32 is the
@@ -49,10 +43,10 @@ services:
       - --dtype
       - float32
       # No --normalize: cpu-1.8 rejects it outright ("unexpected argument") and
-      # the container crash-loops on boot. Verify any further flags against
+      # the container crash-loops on boot. Verify any further flag against
       # `docker compose run --rm text-embeddings-inference --help` before adding
-      # them -- an unrecognised flag takes the whole service down, and when TEI
-      # is down open-webui silently falls back to downloading the model itself.
+      # it -- an unrecognised flag takes the whole service down, and when TEI is
+      # down open-webui silently falls back to downloading the model itself.
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:80/health || exit 1"]
       interval: 30s
