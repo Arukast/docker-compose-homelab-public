@@ -20,6 +20,17 @@ services:
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true
+    # Needed ONLY for the first boot, to pull bge-m3 from Hugging Face. The
+    # shared-ai-backend-net resolver returns SERVFAIL for huggingface.co, so the
+    # container cannot download its own model without this -- every other image
+    # in the stack pulled fine because Docker resolves registry names through the
+    # host, not the container.
+    # Safe to drop once ./tei-cache holds the weights: the model is then read
+    # from disk and no network is touched. Test before removing --
+    # `docker compose logs | grep -i dns`.
+    dns:
+      - 1.1.1.1
+      - 9.9.9.9
     <<: *default-logging
     volumes:
       - ./tei-cache:/data
