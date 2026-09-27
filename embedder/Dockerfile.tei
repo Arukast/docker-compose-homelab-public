@@ -17,6 +17,10 @@
 # got far enough.
 FROM python:3.12-slim AS model-fetch
 
+# Install in a layer of its own so the (large) pip cache is not re-downloaded
+# when only the snapshot step changes.
+RUN pip install --no-cache-dir --quiet huggingface_hub transformers
+
 # Verify the snapshot BEFORE it gets copied into the final image. A truncated
 # download would otherwise surface as a crash-loop hours later, and the cause
 # is not obvious from TEI's startup logs.
