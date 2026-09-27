@@ -52,6 +52,9 @@ try:
 except urllib.error.HTTPError as e:
     print('ERR:%s:%s' % (e.code, e.read()[:300].decode('utf-8', 'replace')))
     raise SystemExit
+except Exception as e:                    # DNS/reset while the container boots
+    print('ERR:unreachable:%s' % e)
+    raise SystemExit
 res = d if isinstance(d, list) else d.get('results', [])
 print(' '.join(x.get('entity_type', '') for x in res))
 PY
@@ -74,31 +77,45 @@ for lang, ents in (d.items() if isinstance(d, dict) else [('en', d)]):
 PY
 }
 
-anonymize() { py "$ANONYMIZER/anonymize" "$1" <<'PY'
+# The anonymizer does NOT call the analyzer: it requires analyzer_results in the
+# request body. So the pipeline is exercised the way production does it --
+# /analyze first, feed the span list into /anonymize.
+anonymize() { py "$ANALYZER/analyze" "$ANONYMIZER/anonymize" "$1" <<'PY'
 import json, sys, urllib.request, urllib.error
-url, text = sys.argv[1], sys.argv[2]
-body = {'text': text, 'language': 'en',
-        'operators': {'DEFAULT': {'type': 'replace', 'new_value': '<X>'}}}
-req = urllib.request.Request(url, json.dumps(body).encode(),
-                             {'Content-Type': 'application/json'})
+aurl, aurl2, text = sys.argv[1], sys.argv[2], sys.argv[3]
+def post(url, body):
+    req = urllib.request.Request(url, json.dumps(body).encode(),
+                                 {'Content-Type': 'application/json'})
+    return json.load(urllib.request.urlopen(req, timeout=60))
 try:
-    d = json.load(urllib.request.urlopen(req, timeout=60))
+    d = post(aurl, {'text': text, 'language': 'en'})
+    res = d if isinstance(d, list) else d.get('results', [])
+    out = post(aurl2, {'text': text, 'analyzer_results': res,
+                       'operators': {'DEFAULT': {'type': 'replace',
+                                                 'new_value': '<X>'}}})
 except urllib.error.HTTPError as e:
     print('ERR:%s:%s' % (e.code, e.read()[:300].decode('utf-8', 'replace')))
     raise SystemExit
-print(d.get('text', '') if isinstance(d, dict) else d)
+except Exception as e:
+    print('ERR:unreachable:%s' % e)
+    raise SystemExit
+print(out.get('text', '') if isinstance(out, dict) else out)
 PY
 }
 
-anonymize_raw() { py "$ANONYMIZER/anonymize" "${1:-hi}" <<'PY'
+anonymize_raw() { py "$ANALYZER/analyze" "$ANONYMIZER/anonymize" "${1:-hi}" <<'PY'
 import json, sys, urllib.request, urllib.error
-url, text = sys.argv[1], sys.argv[2]
-body = {'text': text, 'language': 'en',
-        'operators': {'DEFAULT': {'type': 'replace', 'new_value': '<X>'}}}
-req = urllib.request.Request(url, json.dumps(body).encode(),
-                             {'Content-Type': 'application/json'})
+aurl, aurl2, text = sys.argv[1], sys.argv[2], sys.argv[3]
+def post(url, body):
+    req = urllib.request.Request(url, json.dumps(body).encode(),
+                                 {'Content-Type': 'application/json'})
+    return json.load(urllib.request.urlopen(req, timeout=60))
 try:
-    print(json.dumps(json.load(urllib.request.urlopen(req, timeout=60)), indent=2))
+    d = post(aurl, {'text': text, 'language': 'en'})
+    res = d if isinstance(d, list) else d.get('results', [])
+    print(json.dumps(post(aurl2, {'text': text, 'analyzer_results': res,
+                       'operators': {'DEFAULT': {'type': 'replace',
+                                                 'new_value': '<X>'}}}), indent=2))
 except urllib.error.HTTPError as e:
     print('HTTP', e.code)
     print(e.read().decode('utf-8', 'replace'))
@@ -110,6 +127,20 @@ case "${1:-}" in
   --raw)        analyze_raw "${2:-}"; exit 0 ;;
   --anon-raw)   anonymize_raw "${2:-}"; exit 0 ;;
 esac
+
+# Presidio holds spaCy weights, so a recreate takes tens of seconds to accept
+# traffic. Probe until /health answers instead of firing into a booting worker
+# and reporting ten connection errors as recognizer failures.
+wait_up() {  # $1 = name, $2 = url
+  for _ in $(seq 1 60); do
+    py "$2/health" </dev/null >/dev/null 2>&1 && return 0
+    sleep 2
+  done
+  bad "$1 reachable" "no answer from $2 after 120s"
+  return 1
+}
+wait_up analyzer "$ANALYZER"    || { printf '\n%d passed, %d failed\n' "$pass" "$fail"; exit 1; }
+wait_up anonymizer "$ANONYMIZER" || printf '\nwarning: anonymizer not up, masking check will fail\n'
 
 # ---------------------------------------------------------------- analyzer
 head_ "presidio-analyzer"
@@ -127,7 +158,7 @@ SLACK="xoxb-$(rep 1 10)-$(rep a 24)"
 AGE="AGE-SECRET-KEY-1$(rep q 58)"
 MAIL="a$(rep b 8)@example.com"
 CARD="$(rstr 4111 4)"
-SSN="$(rstr 123 9)"   # 9 bare digits; the old literal had separators UsSsnRecognizer rejects
+SSN="my social security number is $(rstr 123 3)"  # rstr repeats the WHOLE string, so 123 x3 = 9 digits
 
 # want=ANY means "detected something": built-in entity names shift between
 # presidio versions (CREDIT_CARD vs CREDIT_DEBIT_CARD_NUMBER).
