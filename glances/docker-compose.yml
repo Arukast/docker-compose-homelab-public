@@ -10,7 +10,7 @@ services:
     environment:
       - GLANCES_OPT=-w
       - GLANCES_USER=${GLANCES_USER}
-      - GLANCES_PASSWORD=${GLANCES_PASSWORD}
+      - GLANCES_PASS=${GLANCES_PASS}
     volumes:
       - ./glances:/etc/glances:ro
       - /proc:/rootfs/proc:ro
