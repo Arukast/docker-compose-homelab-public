@@ -40,10 +40,10 @@ services:
       redis:
         condition: service_healthy
     networks: [ai-net, ai-backend-net]
-    deploy:
-      resources:
-        limits:
-          memory: 1g
+    # deploy:
+    #   resources:
+    #     limits:
+    #       memory: 1g
 
   redis:
     image: redis:8-alpine
