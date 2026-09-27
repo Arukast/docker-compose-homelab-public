@@ -1,0 +1,60 @@
+x-logging: &default-logging
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+services:
+  # Separate from open-webui on purpose: bge-m3 is ~2.3GB of weights, and
+  # sentence-transformers loads it INSIDE the open-webui process, which is what
+  # pushed that container to a 5g limit. Here it is its own container with its
+  # own ceiling and its own restart, so an embedding request cannot OOM-kill
+  # your chat UI.
+  #
+  # Reached only over the internal backend network -- no host port. The only
+  # client is open-webui.
+  text-embeddings-inference:
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.8
+    container_name: ${TEI_CONTAINER_NAME:-text-embeddings-inference}
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    <<: *default-logging
+    volumes:
+      - ./tei-cache:/data
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+    command:
+      - --model-id
+      # English + Indonesian both strong; 1024-dim, 8192-token context.
+      - ${EMBED_MODEL:-BAAI/bge-m3}
+      # bge-m3 is a CLS-pooled model. The wrong pooling silently returns
+      # garbage vectors that still *look* valid -- RAG just gets worse with no
+      # error anywhere.
+      - --pooling
+      - cls
+      - --normalize
+      # f32 on CPU: the fp16 path is slower on CPU and TEI warns rather than
+      # refusing, so this is set explicitly instead of left to default.
+      - --dtype
+      - f32
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:80/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      # The image pulls and loads ~2.3GB of weights on first boot. start_period
+      # must outlast that or the container is marked unhealthy during startup.
+      start_period: 300s
+    networks: [ai-backend-net]
+    deploy:
+      resources:
+        limits:
+          # Weights ~2.3GB, resident ~2.5GB with tokenization overhead.
+          memory: 3g
+
+networks:
+  ai-backend-net:
+    external: true
+    name: shared-ai-backend-net
