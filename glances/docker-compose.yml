@@ -8,7 +8,8 @@ services:
     pid: host
     network_mode: host
     environment:
-      - GLANCES_OPT=-w --password
+      - GLANCES_OPT=-w
+      - GLANCES_USER=${GLANCES_USER}
       - GLANCES_PASSWORD=${GLANCES_PASSWORD}
     volumes:
       - ./glances:/etc/glances:ro
