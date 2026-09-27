@@ -1,0 +1,17 @@
+services:
+  glances:
+    image: nicolargo/glances:4.5.7-full
+    container_name: glances
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    pid: host
+    network_mode: host
+    environment:
+      - GLANCES_OPT=-w --password
+      - GLANCES_PASSWORD=${GLANCES_PASSWORD}
+    volumes:
+      - ./glances:/etc/glances:ro
+      - /proc:/rootfs/proc:ro
+      - /sys:/rootfs/sys:ro
+      - /etc/os-release:/rootfs/etc/os-release:ro
