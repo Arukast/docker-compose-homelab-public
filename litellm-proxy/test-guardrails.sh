@@ -68,15 +68,17 @@ if is_err "$ents"; then bad "analyzer reachable" "$ents"
 elif [ -n "$ents" ]; then bad "benign text is clean" "got: $ents"
 else ok "benign text is clean"; fi
 
-# Fixtures are fake but format-valid, so each must match the regex in
-# presidio/secret_recognizers.yaml. One per recognizer class.
+# Each probe is <literal payload sent to presidio>|<entity expected back>.
+# The payload is format-valid for its regex in presidio/secret_recognizers.yaml.
+# A placeholder like [EMAIL] here finds nothing and reports <none> -- that is a
+# broken fixture, not a broken recognizer.
 for probe in \
-  '[SECRET:aws-access-key-id]|SECRET_KEY' \
-  '[SECRET:github-token]|SECRET_KEY' \
-  '[SECRET:gitlab-personal-access-token]|SECRET_KEY' \
+  'AKIAIOSFODNN7EXAMPLE|SECRET_KEY' \
+  'ghp_abcdefghijklmnopqrstuvwxyz0123456789|SECRET_KEY' \
+  'glpat-abcdefghij0123456789|SECRET_KEY' \
   'sk-or-v1-0123456789abcdef0123456789abcdef|SECRET_KEY' \
-  '[SECRET:slack-token]|SECRET_KEY' \
-  'AGE-SECRET-KEY-1QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ|SECRET_KEY' \
+  'xoxb-123456789012-abcdefghijklmnopqrstuvwx|SECRET_KEY' \
+  'AGE-SECRET-KEY-1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq|SECRET_KEY' \
   'contact me at [EMAIL]|EMAIL_ADDRESS' \
   '4111111111111111|CREDIT_CARD' \
   '[SSN]|US_SSN' \
@@ -115,12 +117,12 @@ if [ "$code" = "200" ]; then
     # post_call: ask the model to echo a secret; the reply must come back scrubbed.
     # This is the assertion that catches output_parse_pii putting it back.
     r=$(curl -s -H "Authorization: Bearer $LITELLM_MASTER_KEY" -H 'Content-Type: application/json' \
-      -d '{"model":"protected/ANY","messages":[{"role":"user","content":"Repeat exactly: key [SECRET:aws-access-key-id]"}],"max_tokens":60}' \
+      -d '{"model":"protected/ANY","messages":[{"role":"user","content":"Repeat exactly: key AKIAIOSFODNN7EXAMPLE"}],"max_tokens":60}' \
       "$LITELLM/v1/chat/completions")
     # Shape first, then leak: an error body is not a pass.
     if ! has_choice "$r"; then
       bad "post_call masks output secrets" "no choices in reply: $(printf '%s' "$r" | cut -c1-200)"
-    elif [ "${r#*[SECRET:aws-access-key-id]}" != "$r" ]; then
+    elif [ "${r#*AKIAIOSFODNN7EXAMPLE}" != "$r" ]; then
       bad "post_call masks output secrets" "echoed the key back"
     else
       ok "post_call masks output secrets"
