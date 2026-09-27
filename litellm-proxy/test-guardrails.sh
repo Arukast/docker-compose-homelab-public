@@ -216,9 +216,13 @@ if [ "$code" = "200" ]; then
   ok "proxy is up"
   if [ -n "${LITELLM_MASTER_KEY:-}" ]; then
     m=$(curl -s -H "Authorization: Bearer $LITELLM_MASTER_KEY" "$LITELLM/model/info")
-    for mdl in protected/ raw/; do
-      if has "$m" "$mdl"; then ok "route $mdl registered"
-      else bad "route $mdl registered" "not in /model/info"; fi
+    # Substring match, not whole-word: /model/info returns "protected/*" as a
+    # JSON string, so a space-delimited match for "protected/" never fires.
+    for mdl in 'protected/*' 'raw/*'; do
+      case "$m" in
+        *"$mdl"*) ok "route $mdl registered" ;;
+        *)        bad "route $mdl registered" "not in /model/info" ;;
+      esac
     done
     # Route by prefix, then a real model name. "protected/ANY" is not a model --
     # the config declares protected/*, raw/* and *, so a literal ANY 400s.
