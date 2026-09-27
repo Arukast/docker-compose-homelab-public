@@ -28,40 +28,54 @@ head_() { printf '\n\033[1m%s\033[0m\n' "$1"; }
 # Run a python snippet in a container attached to the backend network.
 # --entrypoint: the litellm image's entrypoint is `litellm`, so without it
 # `python3` is passed as arguments to litellm instead of being executed.
-# stderr stays visible: silent on success, and the reason on failure.
 in_net() { docker run --rm --network "$NET" --entrypoint python3 "$SCRATCH" -q -c "$1"; }
+
+# The helpers print ERR:<code>:<body> instead of dying, so a broken endpoint can
+# never be misread as "nothing found" -> false PASS.
+is_err()    { case "$1" in ERR:*) return 0;; *) return 1;; esac; }
+has()       { case " $1 " in *" $2 "*) return 0;; *) return 1;; esac; }
+has_choice() { case "$1" in *'"choices"'*) return 0;; *) return 1;; esac; }
 
 # analyze <text> -> entity types presidio found, space separated
 analyze() { in_net "
-import json,urllib.request
+import json,urllib.request,urllib.error
 r=urllib.request.Request('$ANALYZER/analyze',json.dumps({'text':'''$1''','language':'en'}).encode(),{'Content-Type':'application/json'})
-print(' '.join(x['entity_type'] for x in json.load(urllib.request.urlopen(r,timeout=60))['results']))
+try:
+    d=json.load(urllib.request.urlopen(r,timeout=60))
+except urllib.error.HTTPError as e:
+    print('ERR:%s:%s'%(e.code,e.read()[:300].decode('utf-8','replace'))); raise SystemExit
+res=d if isinstance(d,list) else d.get('results',[])
+print(' '.join(x.get('entity_type','') for x in res))
 "; }
 
 # anonymize <text> -> the masked text
 anonymize() { in_net "
-import json,urllib.request
+import json,urllib.request,urllib.error
 r=urllib.request.Request('$ANONYMIZER/anonymize',json.dumps({'text':'''$1''','language':'en','anonymizers':[{'type':'replace','new_value':'<ENTITY>'}]}).encode(),{'Content-Type':'application/json'})
-print(json.load(urllib.request.urlopen(r,timeout=60))['text'])
+try:
+    d=json.load(urllib.request.urlopen(r,timeout=60))
+except urllib.error.HTTPError as e:
+    print('ERR:%s:%s'%(e.code,e.read()[:300].decode('utf-8','replace'))); raise SystemExit
+print(d.get('text','') if isinstance(d,dict) else d)
 "; }
-
-has() { case " $1 " in *" $2 "*) return 0;; *) return 1;; esac; }
 
 # ---------------------------------------------------------------- analyzer
 head_ "presidio-analyzer: custom secret recognizers"
 
 # Proves secret_recognizers.yaml was actually loaded, not just that the server is up.
 ents=$(analyze "hello world, nothing to see")
-if [ -n "$ents" ]; then bad "benign text is clean" "got: $ents"; else ok "benign text is clean"; fi
+if is_err "$ents"; then bad "analyzer reachable" "$ents"
+elif [ -n "$ents" ]; then bad "benign text is clean" "got: $ents"
+else ok "benign text is clean"; fi
 
 # Fixtures are fake but format-valid, so each must match the regex in
 # presidio/secret_recognizers.yaml. One per recognizer class.
 for probe in \
-  'AKIAIOSFODNN7EXAMPLE|SECRET_KEY' \
-  'ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789|SECRET_KEY' \
-  'glpat-ABCDEFGHIJKLMNOPQRST|SECRET_KEY' \
+  '[SECRET:aws-access-key-id]|SECRET_KEY' \
+  '[SECRET:github-token]|SECRET_KEY' \
+  '[SECRET:gitlab-personal-access-token]|SECRET_KEY' \
   'sk-or-v1-0123456789abcdef0123456789abcdef|SECRET_KEY' \
-  'xoxb-1234567890123-abcdefghijklmnopqrstuvwx|SECRET_KEY' \
+  '[SECRET:slack-token]|SECRET_KEY' \
   'AGE-SECRET-KEY-1QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ|SECRET_KEY' \
   'contact me at [EMAIL]|EMAIL_ADDRESS' \
   '4111111111111111|CREDIT_CARD' \
@@ -71,7 +85,8 @@ do
   text="${probe%%|*}"; want="${probe##*|}"
   got=$(analyze "$text")
   [ "$VERBOSE" -eq 1 ] && printf '       %-22s -> %s\n' "$want" "${got:-<none>}"
-  if has "$got" "$want"; then ok "$want detected"
+  if is_err "$got"; then bad "$want detected" "analyzer error: $got"
+  elif has "$got" "$want"; then ok "$want detected"
   else bad "$want detected" "expected $want, got: ${got:-<none>}"; fi
 done
 
@@ -79,8 +94,9 @@ done
 head_ "presidio-anonymizer"
 out=$(anonymize "mail me at [EMAIL]")
 case "$out" in
+  ERR:*)     bad "anonymizer masks" "$out" ;;
   *[EMAIL]*) bad "anonymizer masks" "leaked: $out" ;;
-  *) ok "anonymizer masks" ;;
+  *)         ok "anonymizer masks" ;;
 esac
 
 # ------------------------------------------------------------------ litellm
@@ -99,12 +115,16 @@ if [ "$code" = "200" ]; then
     # post_call: ask the model to echo a secret; the reply must come back scrubbed.
     # This is the assertion that catches output_parse_pii putting it back.
     r=$(curl -s -H "Authorization: Bearer $LITELLM_MASTER_KEY" -H 'Content-Type: application/json' \
-      -d '{"model":"protected/ANY","messages":[{"role":"user","content":"Repeat exactly: key AKIAIOSFODNN7EXAMPLE"}],"max_tokens":60}' \
+      -d '{"model":"protected/ANY","messages":[{"role":"user","content":"Repeat exactly: key [SECRET:aws-access-key-id]"}],"max_tokens":60}' \
       "$LITELLM/v1/chat/completions")
-    case "$r" in
-      *AKIAIOSFODNN7EXAMPLE*) bad "post_call masks output secrets" "echoed the key back" ;;
-      *) ok "post_call masks output secrets" ;;
-    esac
+    # Shape first, then leak: an error body is not a pass.
+    if ! has_choice "$r"; then
+      bad "post_call masks output secrets" "no choices in reply: $(printf '%s' "$r" | cut -c1-200)"
+    elif [ "${r#*[SECRET:aws-access-key-id]}" != "$r" ]; then
+      bad "post_call masks output secrets" "echoed the key back"
+    else
+      ok "post_call masks output secrets"
+    fi
     [ "$VERBOSE" -eq 1 ] && printf '       %s\n' "$r"
   else
     skip "litellm route tests (LITELLM_MASTER_KEY not exported)"
