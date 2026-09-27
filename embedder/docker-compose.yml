@@ -33,11 +33,15 @@ services:
       # error anywhere.
       - --pooling
       - cls
-      - --normalize
-      # f32 on CPU: the fp16 path is slower on CPU and TEI warns rather than
-      # refusing, so this is set explicitly instead of left to default.
+      # cpu-1.8 accepts float16|float32 (verified via --help). float32 is the
+      # CPU-correct choice; float16 here is slower without saving meaningful RAM.
       - --dtype
-      - f32
+      - float32
+      # No --normalize: cpu-1.8 rejects it outright ("unexpected argument") and
+      # the container crash-loops on boot. Verify any further flags against
+      # `docker compose run --rm text-embeddings-inference --help` before adding
+      # them -- an unrecognised flag takes the whole service down, and when TEI
+      # is down open-webui silently falls back to downloading the model itself.
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:80/health || exit 1"]
       interval: 30s
