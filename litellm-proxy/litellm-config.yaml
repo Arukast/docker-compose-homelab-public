@@ -1,3 +1,8 @@
+general_settings:
+  # Required: Open WebUI's test-connection calls /model/info, which
+  # 500s with "No connected db." without this.
+  database_url: os.environ/DATABASE_URL
+
 model_list:
   # Prefix "protected/" routes requests to OmniRoute via Presidio
   - model_name: "protected/*"

@@ -20,6 +20,7 @@ services:
       - /etc/localtime:/etc/localtime:ro
       - /etc/timezone:/etc/timezone:ro
     environment:
+      - DATABASE_URL=postgresql://litellm:${POSTGRES_PASSWORD:-litellm_db_pass}@postgres:5432/litellm
       - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY}
       # litellm-config.yaml resolves api_base via os.environ/OMNIROUTE_API_BASE
       - OMNIROUTE_API_BASE=${OMNIROUTE_API_BASE:-http://omniroute:20128/v1}
@@ -27,6 +28,9 @@ services:
       - PRESIDIO_ANALYZER_API_BASE=${PRESIDIO_ANALYZER_API_BASE:-http://presidio-analyzer:3000}
       - PRESIDIO_ANONYMIZER_API_BASE=${PRESIDIO_ANONYMIZER_API_BASE:-http://presidio-anonymizer:3000}
     command: ["--config", "/app/config.yaml"]
+    depends_on:
+      postgres:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:4000/health/readiness')"]
       interval: 15s
@@ -39,6 +43,28 @@ services:
         limits:
           # was 512m, ran at 95.77% with the DB attached
           memory: 1g
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: litellm-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: litellm
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-litellm_db_pass}
+      POSTGRES_DB: litellm
+    volumes:
+      - ./postgres_data:/var/lib/postgresql/data
+    networks: [ai-backend-net]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U litellm -d litellm"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          # 57MiB idle, but shared_buffers scales with host RAM when uncapped
+          memory: 512m
 
 networks:
   ai-net:
