@@ -78,7 +78,7 @@ anonymize() { py "$ANONYMIZER/anonymize" "$1" <<'PY'
 import json, sys, urllib.request, urllib.error
 url, text = sys.argv[1], sys.argv[2]
 body = {'text': text, 'language': 'en',
-        'anonymizers': [{'type': 'replace', 'new_value': '<X>'}]}
+        'operators': {'DEFAULT': {'type': 'replace', 'new_value': '<X>'}}}
 req = urllib.request.Request(url, json.dumps(body).encode(),
                              {'Content-Type': 'application/json'})
 try:
@@ -94,7 +94,7 @@ anonymize_raw() { py "$ANONYMIZER/anonymize" "${1:-hi}" <<'PY'
 import json, sys, urllib.request, urllib.error
 url, text = sys.argv[1], sys.argv[2]
 body = {'text': text, 'language': 'en',
-        'anonymizers': [{'type': 'replace', 'new_value': '<X>'}]}
+        'operators': {'DEFAULT': {'type': 'replace', 'new_value': '<X>'}}}
 req = urllib.request.Request(url, json.dumps(body).encode(),
                              {'Content-Type': 'application/json'})
 try:

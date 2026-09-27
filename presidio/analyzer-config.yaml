@@ -1,5 +1,5 @@
 # Analyzer SERVER config (ANALYZER_CONF_FILE). Not the registry -- that lives in
-# secret_recognizers.yaml via ANALYZER_REGISTRY_CONF_FILE, and the loader reads it
+# secret_recognizers.yaml via RECOGNIZER_REGISTRY_CONF_FILE, and the loader reads it
 # from presidio_analyzer/conf/default_recognizers.yaml unless told otherwise.
 #
 # Key names follow this image's loader, NOT the stale conf/default.yaml -- that file
