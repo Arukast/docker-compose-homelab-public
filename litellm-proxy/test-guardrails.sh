@@ -216,32 +216,41 @@ if [ "$code" = "200" ]; then
   ok "proxy is up"
   if [ -n "${LITELLM_MASTER_KEY:-}" ]; then
     m=$(curl -s -H "Authorization: Bearer $LITELLM_MASTER_KEY" "$LITELLM/model/info")
-    # Substring match, not whole-word: /model/info returns "protected/*" as a
-    # JSON string, so a space-delimited match for "protected/" never fires.
-    for mdl in 'protected/*' 'raw/*'; do
+    for mdl in 'protected/' 'raw/'; do
       case "$m" in
-        *"$mdl"*) ok "route $mdl registered" ;;
-        *)        bad "route $mdl registered" "not in /model/info" ;;
+        *"\"model_name\":\"$mdl"*) ok "route $mdl* registered" ;;
+        *)        bad "route $mdl* registered" "not in /model/info" ;;
       esac
     done
-    # Route by prefix, then a real model name. "protected/ANY" is not a model --
-    # the config declares protected/*, raw/* and *, so a literal ANY 400s.
-    mdl=${TEST_MODEL:-$PROTECTED_MODEL}
-    if [ -z "$mdl" ]; then
-      skip "post_call masks output secrets (set PROTECTED_MODEL=protected/<real model>)"
-    else
+    # Test an actual route. "protected/ANY" is not a model -- the config
+    # declares protected/*, raw/* and *, so a literal ANY 400s. Pull a real name
+    # out of /model/info; a transcription model would return no text to mask.
+    models=$(printf '%s' "$m" | tr ',' '\n' | grep -o '"model_name":"protected/[^"]*"' \
+             | cut -d'"' -f4 | grep -Ev 'transcribe|whisper|tts|embed|image' | head -1)
+    [ -z "$models" ] && models=${TEST_MODEL:-$PROTECTED_MODEL}
+    for mdl in $models; do
+      # Guard attached to THIS model? /model/info is the only place that shows
+      # the resolved guardrail list, and a route can silently lose it.
+      case "$m" in
+        *"\"model_name\":\"$mdl\""*"presidio-pii"*) ok "guardrail attached [$mdl]" ;;
+        *) bad "guardrail attached [$mdl]" "presidio-pii not listed for this model" ;;
+      esac
+
+      # post_call test: the model must INVENT the secret, never be handed it.
+      # Echoing a key we put in the prompt is masked by pre_call, so it passes
+      # even with post_call completely dead -- which is what hid the card leak.
       r=$(curl -s -H "Authorization: Bearer $LITELLM_MASTER_KEY" -H 'Content-Type: application/json' \
-        -d "{\"model\":\"$mdl\",\"messages\":[{\"role\":\"user\",\"content\":\"Repeat exactly: $AWS\"}],\"max_tokens\":60}" \
+        -d "{\"model\":\"$mdl\",\"messages\":[{\"role\":\"user\",\"content\":\"Invent a fake 16-digit visa test number and print only the digits.\"}],\"max_tokens\":60}" \
         "$LITELLM/v1/chat/completions")
       if ! has_choice "$r"; then
-        bad "post_call masks output secrets [$mdl]" "no choices: $(printf '%s' "$r" | cut -c1-200)"
-      elif [ "${r#*$AWS}" != "$r" ]; then
-        bad "post_call masks output secrets [$mdl]" "echoed the key back"
+        bad "post_call masks generated card [$mdl]" "no choices: $(printf '%s' "$r" | cut -c1-200)"
+      elif leaked=$(printf '%s' "$r" | grep -oE '[0-9]{13,19}' | head -1) && [ -n "$leaked" ]; then
+        bad "post_call masks generated card [$mdl]" "unmasked digit run came back: $leaked"
       else
-        ok "post_call masks output secrets [$mdl]"
+        ok "post_call masks generated card [$mdl]"
       fi
       [ "$VERBOSE" -eq 1 ] && printf '       %s\n' "$r"
-    fi
+    done
   else
     skip "litellm route tests (LITELLM_MASTER_KEY not set; export it or source .env)"
   fi
