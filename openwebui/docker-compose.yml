@@ -21,12 +21,25 @@ services:
       - ./open-webui-data:/app/backend/data
       - /etc/localtime:/etc/localtime:ro
     environment:
-      - HF_HOME=/app/backend/data/cache/embedding/models
+      # Chat goes through litellm (PII guardrail). Embeddings do NOT: they go
+      # straight to the embedder, bypassing the proxy. An embedding request is
+      # a vectorization, not a disclosure -- routing it through presidio would
+      # mask numbers before they are embedded and silently corrupt the vectors.
       - OPENAI_API_BASE_URL=${OPENAI_API_BASE_URL:-http://litellm-proxy:4000/v1}
       # Must be litellm-proxy's LITELLM_MASTER_KEY, not OmniRoute's key
       - OPENAI_API_KEY=${LITELLM_API_KEY}
-      # Local CPU-based RAG configuration
+      # Separate embedding connection. Without RAG_EMBEDDING_OPENAI_API_BASE_URL
+      # open-webui falls back to OPENAI_API_BASE_URL and bge-m3 loads
+      # in-process inside this container -- which is what forced 5g here.
+      - RAG_EMBEDDING_ENGINE=openai
+      # Must match the embedder's --model-id EXACTLY: this string is sent to TEI
+      # as the "model" field, and TEI only answers for the name it was launched
+      # with. A mismatch returns 404 on every embedding request.
       - RAG_EMBEDDING_MODEL=${RAG_EMBEDDING_MODEL:-BAAI/bge-m3}
+      - RAG_EMBEDDING_OPENAI_API_BASE_URL=${RAG_EMBEDDING_OPENAI_API_BASE_URL:-http://text-embeddings-inference:80/v1}
+      # TEI has no auth by default. open-webui still requires the var to be set,
+      # so this is a placeholder -- never a real secret.
+      - RAG_EMBEDDING_OPENAI_API_KEY=${RAG_EMBEDDING_OPENAI_API_KEY:-not-needed}
       - ENABLE_WEB_SEARCH=${ENABLE_WEB_SEARCH:-true}
       - WEB_SEARCH_ENGINE=${WEB_SEARCH_ENGINE:-searxng}
       - SEARXNG_QUERY_URL=${SEARXNG_QUERY_URL:-http://searxng:8080/search?q=<query>}
@@ -36,14 +49,18 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
-    networks: [ai-net]
+    networks: [ai-net, ai-backend-net]
     deploy:
       resources:
         limits:
-          # was 5g. Uses ~1.0GiB idle; 2g leaves headroom for a big RAG/index
-          # load without letting it starve the rest of the LXC.
+          # was 5g. Once bge-m3 moved out to the embedder this container holds no
+          # model weights, so it drops to ~600MiB. 2g still leaves headroom for a
+          # large index load without letting it starve the rest of the LXC.
           memory: 2g
 
 networks:
   ai-net:
     external: true
+  ai-backend-net:
+    external: true
+    name: shared-ai-backend-net

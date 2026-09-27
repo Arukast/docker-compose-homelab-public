@@ -24,7 +24,6 @@ services:
     volumes:
       - ./tei-cache:/data
       - /etc/localtime:/etc/localtime:ro
-      - /etc/timezone:/etc/timezone:ro
     command:
       - --model-id
       # English + Indonesian both strong; 1024-dim, 8192-token context.
