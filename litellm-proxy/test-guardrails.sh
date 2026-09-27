@@ -5,7 +5,7 @@
 #   ./test-guardrails.sh -v          # show what presidio actually returned
 #   ./test-guardrails.sh --entities  # every entity the analyzer says it supports
 #   ./test-guardrails.sh --raw "hi"  # raw /analyze response
-#   ./test-guardrails.sh --anon-raw  # raw /anonymize error body
+#   ./test-guardrails.sh --anon-raw  # raw /anonymize response or error
 #
 # Run on the machine that runs the docker daemon (your LXC), not in a container:
 # it shells out to `docker` and `curl`. Presidio publishes no host port, so it is
@@ -27,62 +27,89 @@ bad()   { printf '  \033[31mFAIL\033[0m %s\n' "$1"; printf '       %s\n' "$2"; f
 skip()  { printf '  \033[33mSKIP\033[0m %s\n' "$1"; }
 head_() { printf '\n\033[1m%s\033[0m\n' "$1"; }
 
-in_net() { docker run --rm --network "$NET" --entrypoint python3 "$SCRATCH" -q -c "$1"; }
+# Python is fed over stdin from a quoted heredoc and the URL/text arrive as argv,
+# so bash never has to quote-balance an embedded program and payloads are never
+# interpolated into source.
+py() { docker run --rm -i --network "$NET" --entrypoint python3 "$SCRATCH" -q - "$@"; }
 
 # A broken endpoint must never read as "nothing found" -> false PASS.
 is_err()     { case "$1" in ERR:*) return 0;; *) return 1;; esac; }
 has()        { case " $1 " in *" $2 "*) return 0;; *) return 1;; esac; }
 has_choice() { case "$1" in *'"choices"'*) return 0;; *) return 1;; esac; }
 
-# Test payloads are BUILT, never written as literals. A hand-typed
-# secret-shaped string is indistinguishable from a real one, and a miscounted
-# one is indistinguishable from a broken recognizer.
-rep()  { printf "%${2}s" '' | tr ' ' "$1"; }          # rep A 16  -> 16 A's
-rstr() { printf "$1%.0s" $(seq "$2"); }               # rstr 4111 4 -> 41114111...
+# Test payloads are BUILT, never written as literals: a miscounted hand-typed
+# secret looks exactly like a broken recognizer.
+rep()  { printf "%${2}s" '' | tr ' ' "$1"; }   # rep A 16 -> 16 A's
+rstr() { printf "$1%.0s" $(seq "$2"); }        # rstr 4111 4 -> 16 digits
+
+analyze() { py "$ANALYZER/analyze" "$1" <<'PY'
+import json, sys, urllib.request, urllib.error
+url, text = sys.argv[1], sys.argv[2]
+req = urllib.request.Request(url, json.dumps({'text': text, 'language': 'en'}).encode(),
+                             {'Content-Type': 'application/json'})
+try:
+    d = json.load(urllib.request.urlopen(req, timeout=60))
+except urllib.error.HTTPError as e:
+    print('ERR:%s:%s' % (e.code, e.read()[:300].decode('utf-8', 'replace')))
+    raise SystemExit
+res = d if isinstance(d, list) else d.get('results', [])
+print(' '.join(x.get('entity_type', '') for x in res))
+PY
+}
+
+analyze_raw() { py "$ANALYZER/analyze" "${1:-hi}" <<'PY'
+import json, sys, urllib.request
+url, text = sys.argv[1], sys.argv[2]
+req = urllib.request.Request(url, json.dumps({'text': text, 'language': 'en'}).encode(),
+                             {'Content-Type': 'application/json'})
+print(json.dumps(json.load(urllib.request.urlopen(req, timeout=60)), indent=2))
+PY
+}
+
+entities() { py "$ANALYZER/supportedentities" <<'PY'
+import json, sys, urllib.request
+d = json.load(urllib.request.urlopen(sys.argv[1], timeout=60))
+for lang, ents in (d.items() if isinstance(d, dict) else [('en', d)]):
+    print(lang + ':', ' '.join(ents))
+PY
+}
+
+anonymize() { py "$ANONYMIZER/anonymize" "$1" <<'PY'
+import json, sys, urllib.request, urllib.error
+url, text = sys.argv[1], sys.argv[2]
+body = {'text': text, 'language': 'en',
+        'anonymizers': [{'type': 'replace', 'new_value': '<X>'}]}
+req = urllib.request.Request(url, json.dumps(body).encode(),
+                             {'Content-Type': 'application/json'})
+try:
+    d = json.load(urllib.request.urlopen(req, timeout=60))
+except urllib.error.HTTPError as e:
+    print('ERR:%s:%s' % (e.code, e.read()[:300].decode('utf-8', 'replace')))
+    raise SystemExit
+print(d.get('text', '') if isinstance(d, dict) else d)
+PY
+}
+
+anonymize_raw() { py "$ANONYMIZER/anonymize" "${1:-hi}" <<'PY'
+import json, sys, urllib.request, urllib.error
+url, text = sys.argv[1], sys.argv[2]
+body = {'text': text, 'language': 'en',
+        'anonymizers': [{'type': 'replace', 'new_value': '<X>'}]}
+req = urllib.request.Request(url, json.dumps(body).encode(),
+                             {'Content-Type': 'application/json'})
+try:
+    print(json.dumps(json.load(urllib.request.urlopen(req, timeout=60)), indent=2))
+except urllib.error.HTTPError as e:
+    print('HTTP', e.code)
+    print(e.read().decode('utf-8', 'replace'))
+PY
+}
 
 case "${1:-}" in
-  --entities) in_net "
-import json,urllib.request
-d=json.load(urllib.request.urlopen('$ANALYZER/supportedentities',timeout=60))
-for lang,ents in (d.items() if isinstance(d,dict) else [('en',d)]):
-    print(lang+':', ' '.join(ents))
-"; exit 0 ;;
-  --raw) in_net "
-import json,urllib.request
-r=urllib.request.Request('$ANALYZER/analyze',json.dumps({'text':'''${2:-hi''','language':'en'}).encode(),{'Content-Type':'application/json'})
-print(json.dumps(json.load(urllib.request.urlopen(r,timeout=60)),indent=2))
-"; exit 0 ;;
-  --anon-raw) in_net "
-import json,urllib.request,urllib.error
-body={'text':'mail me at $MAIL','language':'en','anonymizers':[{'type':'replace','new_value':'<X>'}]}
-r=urllib.request.Request('$ANONYMIZER/anonymize',json.dumps(body).encode(),{'Content-Type':'application/json'})
-try:
-    print(json.dumps(json.load(urllib.request.urlopen(r,timeout=60)),indent=2))
-except urllib.error.HTTPError as e:
-    print('HTTP',e.code); print(e.read().decode('utf-8','replace'))
-"; exit 0 ;;
+  --entities)   entities; exit 0 ;;
+  --raw)        analyze_raw "${2:-}"; exit 0 ;;
+  --anon-raw)   anonymize_raw "${2:-}"; exit 0 ;;
 esac
-
-analyze() { in_net "
-import json,urllib.request,urllib.error
-r=urllib.request.Request('$ANALYZER/analyze',json.dumps({'text':'''$1''','language':'en'}).encode(),{'Content-Type':'application/json'})
-try:
-    d=json.load(urllib.request.urlopen(r,timeout=60))
-except urllib.error.HTTPError as e:
-    print('ERR:%s:%s'%(e.code,e.read()[:300].decode('utf-8','replace'))); raise SystemExit
-res=d if isinstance(d,list) else d.get('results',[])
-print(' '.join(x.get('entity_type','') for x in res))
-"; }
-
-anonymize() { in_net "
-import json,urllib.request,urllib.error
-r=urllib.request.Request('$ANONYMIZER/anonymize',json.dumps({'text':'''$1''','language':'en','anonymizers':[{'type':'replace','new_value':'<X>'}]}).encode(),{'Content-Type':'application/json'})
-try:
-    d=json.load(urllib.request.urlopen(r,timeout=60))
-except urllib.error.HTTPError as e:
-    print('ERR:%s:%s'%(e.code,e.read()[:300].decode('utf-8','replace'))); raise SystemExit
-print(d.get('text','') if isinstance(d,dict) else d)
-"; }
 
 # ---------------------------------------------------------------- analyzer
 head_ "presidio-analyzer"
@@ -95,12 +122,12 @@ else ok "benign text is clean"; fi
 AWS="AKIA$(rep A 16)"
 GHP="ghp_$(rep a 36)"
 GLP="glpat-$(rep a 20)"
-SKOR="sk-or-v1-$(rstr 01234567 8)"      # 64 hex
+SKOR="sk-or-v1-$(rstr 01234567 8)"
 SLACK="xoxb-$(rep 1 10)-$(rep a 24)"
 AGE="AGE-SECRET-KEY-1$(rep q 58)"
 MAIL="a$(rep b 8)@example.com"
-CARD="$(rstr 4111 4)"                   # 16 digits
-SSN="123-45-6789"
+CARD="$(rstr 4111 4)"
+SSN="[SSN]"
 
 # want=ANY means "detected something": built-in entity names shift between
 # presidio versions (CREDIT_CARD vs CREDIT_DEBIT_CARD_NUMBER).
@@ -138,7 +165,8 @@ if [ "$code" = "200" ]; then
   if [ -n "${LITELLM_MASTER_KEY:-}" ]; then
     m=$(curl -s -H "Authorization: Bearer $LITELLM_MASTER_KEY" "$LITELLM/model/info")
     for mdl in protected/ raw/; do
-      case "$m" in *"$mdl"*) ok "route '$mdl' registered";; *) bad "route '$mdl' registered" "not in /model/info";; esac
+      if has "$m" "$mdl"; then ok "route $mdl registered"
+      else bad "route $mdl registered" "not in /model/info"; fi
     done
     r=$(curl -s -H "Authorization: Bearer $LITELLM_MASTER_KEY" -H 'Content-Type: application/json' \
       -d "{\"model\":\"protected/ANY\",\"messages\":[{\"role\":\"user\",\"content\":\"Repeat exactly: $AWS\"}],\"max_tokens\":60}" \
