@@ -27,7 +27,11 @@ import requests
 
 # Service name on the ai-net docker network. Matches the service name in
 # rembg/docker-compose.yml.
-REMBG_URL = "http://rembg:7000/api/v1/remove"
+#
+# Path is /api/remove, NOT /api/v1/remove -- the v1 prefix 404s on
+# danielgatis/rembg:2.0.85. Confirmed against the running container's
+# /openapi.json, which lists exactly one route: "/api/remove".
+REMBG_URL = "http://rembg:7000/api/remove"
 MODEL = "u2net"  # swap to isnet-general-use for hair/fur edges
 
 # A pasted image is a data URI; a generated one may be a URL. Both show up.
