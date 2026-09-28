@@ -113,15 +113,13 @@ services:
     deploy:
       resources:
         limits:
-          # 5g, not 3g. bge-m3 is an XLM-RoBERTa: ~2.27GB of weights, and the
-          # warmup forward pass builds an activation graph on top of that, so peak
-          # is ~4GB. Under 3g the kernel SIGKILLed it mid-warmup every time
-          # (exit 137, no error line -- the tell of a kill, not a crash). Note
-          # `.State.OOMKilled` reads FALSE here: the kill comes from the LXC
-          # host limit, not the container cgroup, so Docker never sets the flag.
-          # Don't drop this back to 3g without watching `docker stats` during
-          # warmup, and the LXC is 11GB total with the rest of the stack running.
-          memory: 5g
+          # Increased to 8g after OOM at 5g during warmup. bge-m3 is ~2.27GB
+          # weights; warmup forward pass may need more than 4GB peak. The LXC
+          # has 11GB total, and other services (open-webui, litellm, presidio,
+          # searxng, omniroute) consume the rest. If 8g still OOM, we must
+          # consider a smaller model or accepting the in-process open-webui
+          # embedding path.
+          memory: 8g
 
 volumes:
   # Named, not a bind mount: the deployer user must not need write access to the
