@@ -1,23 +1,21 @@
 """
 title: Remove Image Background
 author: docker-compose-homelab
-version: 0.1.0
+version: 0.2.0
 license: MIT
-description: Strip the background from an image attached to the chat, using the rembg service.
+# Block scalar, not a plain one. Open WebUI parses this docstring as YAML and a
+# bare ": " or " #" anywhere below would either error out or truncate the value
+# -- either way the function silently never loads. Inside | both are literal.
+description: |
+  Strip the background from an image attached to the chat, using the rembg service.
 
-# How it works
+  Open WebUI tools (OpenAPI) only take text arguments, so a tool cannot see an
+  image dragged into the chat. A pipe function can. Open WebUI passes the
+  conversation to it, and the image in the last user message arrives as a
+  base64 data URI.
 
-Open WebUI tools (OpenAPI) only take text arguments, so a tool cannot see an
-image you drag into the chat. A pipe function can: Open WebUI passes the
-conversation to it, and any image in the last user message arrives as a
-base64 data URI.
-
-So: read the image, POST it to rembg, return the cut-out in the reply.
-
-# Usage
-
-Attach an image and say "remove the background". Works with Indonesian too --
-the prompt is only used as the caption.
+  Usage: attach an image and say "remove the background". Works with Indonesian
+  too -- the prompt is only used as the caption.
 """
 
 import base64
@@ -83,13 +81,10 @@ class Pipe:
 
         out = base64.b64encode(response.content).decode()
         caption = (messages[-1].get("content") or "").split("data:image")[0].strip()
+        result = f"{caption}\n![result](data:image/png;base64,{out})"
 
-        return {
-            "messages": messages
-            + [
-                {
-                    "role": "user",
-                    "content": f"{caption}\n![result](data:image/png;base64,{out})",
-                }
-            ]
-        }
+        # Appended to the existing last user message, not sent as a second one.
+        # Two user messages back to back is rejected by most chat backends, and
+        # Open WebUI renders markdown in the user bubble either way.
+        messages[-1]["content"] = result
+        return {"messages": messages}
