@@ -31,13 +31,22 @@ services:
       - sh
       - -c
       - |
-        if [ -f /model/config.json ]; then
-          echo "bge-m3 already in volume, skipping download"
+        # The Hub file is capital-P Pytorch_model.bin (and capital-C Config.json),
+        # NOT config.json, so the old guard never fired and every deploy
+        # re-walked the Hub with a full volume already sitting there.
+        if [ -f /model/pytorch_model.bin ] || [ -f /model/Pytorch_model.bin ]; then
+          echo "weights already in volume, skipping download"
           exit 0
         fi
         pip install --no-cache-dir -q huggingface_hub
+        # No ignore_patterns fetched 4.3GB, not 2.3GB: the ONNX export, the
+        # ColBERT/sparse heads and the README images are all dead weight for a
+        # --pooling cls load. Ignoring them halves the volume on a disk that ran
+        # out of space during a previous build.
         python -c "from huggingface_hub import snapshot_download; \
-        snapshot_download('${EMBED_MODEL:-BAAI/bge-m3}', local_dir='/model')"
+        snapshot_download('${EMBED_MODEL:-BAAI/bge-m3}', local_dir='/model', \
+        ignore_patterns=['Onnx/*', 'onnx/*', '*.onnx', 'Imgs/*', '*.jpg', \
+        'Colbert_linear.pt', 'Sparse_linear.pt', '*.md'])"
         echo "model downloaded"
     deploy:
       resources:
