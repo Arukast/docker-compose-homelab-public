@@ -38,14 +38,17 @@ services:
       - s
       - --no-ui
     healthcheck:
-      # /health is the FastAPI health route. --no-ui keeps the Gradio web UI off
-      # the port so 7000 is API-only, which is what the OpenAPI tool expects.
-      test: ["CMD-SHELL", "python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:7000/health')\""]
+      # There is no /health on this app -- guessing one gets a 404 forever.
+      # FastAPI always serves its schema at /openapi.json, so that is the probe.
+      # Confirmed against danielgatis/rembg:2.0.85, which prints
+      # "To access the API documentation, go to http://localhost:7000/api".
+      test: ["CMD-SHELL", "curl -sf -o /dev/null http://localhost:7000/openapi.json || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
-      # First boot downloads u2net. start_period covers it.
-      start_period: 120s
+      # First real request downloads u2net (~176MB) into the volume. That is
+      # inference time, not startup, so start_period only has to cover boot.
+      start_period: 60s
     networks: [ai-net]
     deploy:
       resources:
