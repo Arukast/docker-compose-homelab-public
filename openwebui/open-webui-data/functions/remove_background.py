@@ -1,7 +1,7 @@
 """
 title: Remove Image Background
 author: docker-compose-homelab
-version: 0.2.0
+version: 0.3.0
 license: MIT
 # Block scalar, not a plain one. Open WebUI parses this docstring as YAML and a
 # bare ": " or " #" anywhere below would either error out or truncate the value
@@ -30,22 +30,46 @@ import requests
 # danielgatis/rembg:2.0.85. Confirmed against the running container's
 # /openapi.json, which lists exactly one route: "/api/remove".
 REMBG_URL = "http://rembg:7000/api/remove"
-MODEL = "u2net"  # swap to isnet-general-use for hair/fur edges
+MODEL = "isnet-general-use"  # hair/fur / white-on-white edges; u2net for hard-edged products
 
 # A pasted image is a data URI; a generated one may be a URL. Both show up.
 DATA_URI = re.compile(r"data:image/[\w.+-]+;base64,(?P<b64>[A-Za-z0-9+/=\s]+)")
 
 
+def _text(content) -> str:
+    """content is a plain string, or a list of parts. Both are real here."""
+    if isinstance(content, str):
+        return content
+    return "".join(
+        p.get("text", "") for p in content or [] if isinstance(p, dict) and p.get("type") == "text"
+    )
+
+
 def _first_image(messages: list) -> str | None:
-    """Newest user message wins, and within it the newest image."""
+    """Newest user message wins, and within it the newest image.
+
+    Two shapes reach us. Open WebUI's own format puts attachments in a
+    top-level "images" list. When a vision-capable model is selected, content
+    is an OpenAI parts list and the image is an image_url part. Both are data
+    URIs. Older builds inlined a bare data URI in a string, so that is still
+    checked -- but only after isinstance, or re.search explodes on a list.
+    """
     for message in reversed(messages):
         if message.get("role") != "user":
             continue
-        images = message.get("images") or []
-        if images:
+
+        if images := message.get("images"):
             return images[0]
-        match = DATA_URI.search(message.get("content") or "")
-        if match:
+
+        content = message.get("content")
+        if isinstance(content, list):
+            for part in content:
+                if isinstance(part, dict) and part.get("type") == "image_url":
+                    url = part["image_url"]
+                    return url["url"] if isinstance(url, dict) else url
+            continue
+
+        if match := DATA_URI.search(content or ""):
             return f"data:image/png;base64,{match.group('b64')}"
     return None
 
@@ -54,20 +78,24 @@ class Pipe:
     def pipes(self) -> list:
         return [
             {
-                "type": "filter",  # runs on the input, not the model's reply
                 "id": "remove_background",
                 "name": "Remove Image Background",
             }
         ]
 
-    def pipe(self, body: dict, __user__=None, **kwargs) -> dict:
+    def pipe(self, body: dict, __user__=None, **kwargs) -> str:
         messages = body.get("messages", [])
         image = _first_image(messages)
 
+        # Pipe runs are invisible in the UI, so log what actually happened.
+        # "Found no image" here means the attachment never reached us, which is
+        # a very different bug from rembg failing.
+        print(f"[remove_background] model={body.get('model')} messages={len(messages)} image={'yes' if image else 'NO'}")
         if not image:
-            # Nothing to do. Returning the input unchanged keeps the model
-            # answering normally instead of seeing a tool error.
-            return {"messages": messages}
+            # Nothing to remove. A one-line note is better than silence: the
+            # user learns the model can't see their image before they wonder
+            # why nothing happened.
+            return "No image found in the message. Attach one, then send it again."
 
         raw = base64.b64decode(image.split(",", 1)[1])
 
@@ -77,14 +105,12 @@ class Pipe:
             data={"model": MODEL},
             timeout=120,
         )
+        print(f"[remove_background] rembg {response.status_code} {len(response.content)} bytes")
         response.raise_for_status()
 
         out = base64.b64encode(response.content).decode()
-        caption = (messages[-1].get("content") or "").split("data:image")[0].strip()
-        result = f"{caption}\n![result](data:image/png;base64,{out})"
 
-        # Appended to the existing last user message, not sent as a second one.
-        # Two user messages back to back is rejected by most chat backends, and
-        # Open WebUI renders markdown in the user bubble either way.
-        messages[-1]["content"] = result
-        return {"messages": messages}
+        # Must be a plain string. The backend only converts a str into a chat
+        # message (see get_message_content in open_webui/functions.py); a dict
+        # is returned to the client as the raw response body and never renders.
+        return f"Background removed ({MODEL}).\n\n![result](data:image/png;base64,{out})"
