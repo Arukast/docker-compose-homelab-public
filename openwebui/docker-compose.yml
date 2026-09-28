@@ -21,25 +21,24 @@ services:
       - ./open-webui-data:/app/backend/data
       - /etc/localtime:/etc/localtime:ro
     environment:
-      # Chat goes through litellm (PII guardrail). Embeddings do NOT: they go
-      # straight to the embedder, bypassing the proxy. An embedding request is
+      # Chat goes through litellm (PII guardrail). Embeddings do NOT: they are
+      # vectorized in-process here, bypassing the proxy. An embedding request is
       # a vectorization, not a disclosure -- routing it through presidio would
       # mask numbers before they are embedded and silently corrupt the vectors.
       - OPENAI_API_BASE_URL=${OPENAI_API_BASE_URL:-http://litellm-proxy:4000/v1}
       # Must be litellm-proxy's LITELLM_MASTER_KEY, not OmniRoute's key
       - OPENAI_API_KEY=${LITELLM_API_KEY}
-      # Separate embedding connection. Without RAG_EMBEDDING_OPENAI_API_BASE_URL
-      # open-webui falls back to OPENAI_API_BASE_URL and bge-m3 loads
-      # in-process inside this container -- which is what forced 5g here.
-      - RAG_EMBEDDING_ENGINE=openai
-      # Must match the embedder's --model-id EXACTLY: this string is sent to TEI
-      # as the "model" field, and TEI only answers for the name it was launched
-      # with. A mismatch returns 404 on every embedding request.
+      # In-process embeddings, not a remote TEI. bge-m3 is the smallest model I
+      # found that actually handles Indonesian, and on this 11GB LXC it will not
+      # run as a separate container: TEI reserves a full --max-batch-tokens
+      # forward pass at startup and the box ran dry (exit 137, memory.peak
+      # 11.8GB). open-webui only allocates for the text it is given, so a chat
+      # message costs a few hundred tokens instead of a pre-allocated 8192.
+      # It is on ai-net, which has egress, so sentence-transformers fetches the
+      # weights on first boot into ./open-webui-data/cache/embedding.
+      - RAG_EMBEDDING_ENGINE=sentence-transformers
       - RAG_EMBEDDING_MODEL=${RAG_EMBEDDING_MODEL:-BAAI/bge-m3}
-      - RAG_EMBEDDING_OPENAI_API_BASE_URL=${RAG_EMBEDDING_OPENAI_API_BASE_URL:-http://text-embeddings-inference:80/v1}
-      # TEI has no auth by default. open-webui still requires the var to be set,
-      # so this is a placeholder -- never a real secret.
-      - RAG_EMBEDDING_OPENAI_API_KEY=${RAG_EMBEDDING_OPENAI_API_KEY:-not-needed}
+      - RAG_EMBEDDING_ENGINE_MODEL_ID=${RAG_EMBEDDING_MODEL:-BAAI/bge-m3}
       - ENABLE_WEB_SEARCH=${ENABLE_WEB_SEARCH:-true}
       - WEB_SEARCH_ENGINE=${WEB_SEARCH_ENGINE:-searxng}
       - SEARXNG_QUERY_URL=${SEARXNG_QUERY_URL:-http://searxng:8080/search?q=<query>}
@@ -53,10 +52,12 @@ services:
     deploy:
       resources:
         limits:
-          # was 5g. Once bge-m3 moved out to the embedder this container holds no
-          # model weights, so it drops to ~600MiB. 2g still leaves headroom for a
-          # large index load without letting it starve the rest of the LXC.
-          memory: 2g
+          # was 5g, then 2g while bge-m3 lived in the separate embedder. Back to
+          # 5g now that it lives here again: the weights are ~2.3GB and must be
+          # resident, and a 2g ceiling would OOM the chat UI on the first
+          # embedding call. This is the real cost of in-process embeddings --
+          # chat and RAG share one ceiling.
+          memory: 5g
 
 networks:
   ai-net:
