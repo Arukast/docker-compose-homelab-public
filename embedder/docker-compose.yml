@@ -88,10 +88,19 @@ services:
       # anywhere.
       - --pooling
       - cls
-      # cpu-1.8 accepts float16|float32 (verified via --help). float32 is the
-      # CPU-correct choice; float16 here is slower without saving meaningful RAM.
+      # cpu-1.8 accepts float16|float32 (verified via --help). float16 halves the
+      # weights: bge-m3 is 2.27GB in fp32, ~1.15GB in fp16. That is the whole
+      # ballgame on this box -- the LXC is 11GB total with ~2.4GB already used by
+      # the rest of the stack, and the model was being SIGKILLed (exit 137) once
+      # the box ran dry, not by its own limit. Slower per request on CPU, which is
+      # the correct trade against not existing at all.
       - --dtype
-      - float32
+      - float16
+      # Activation memory scales with batch tokens, not just weights. Default is
+      # 16384; bge-m3 tops out at 8192 tokens per request anyway, so halving this
+      # costs nothing real and cuts the warmup peak.
+      - --max-batch-tokens
+      - "8192"
       # No --normalize: cpu-1.8 rejects it outright ("unexpected argument") and
       # the container crash-loops on boot. Check any new flag with
       # `docker compose run --rm text-embeddings-inference --help` first -- an
@@ -113,13 +122,18 @@ services:
     deploy:
       resources:
         limits:
-          # Increased to 8g after OOM at 5g during warmup. bge-m3 is ~2.27GB
-          # weights; warmup forward pass may need more than 4GB peak. The LXC
-          # has 11GB total, and other services (open-webui, litellm, presidio,
-          # searxng, omniroute) consume the rest. If 8g still OOM, we must
-          # consider a smaller model or accepting the in-process open-webui
-          # embedding path.
-          memory: 8g
+          # 4g, and this limit is not what was killing it. Do not raise it.
+          # `cat /sys/fs/cgroup/memory.peak` hit 11.8GB -- the whole LXC -- while
+          # this container showed 805MiB/8GiB in docker stats. The box ran out of
+          # memory, Proxmox SIGKILLed the biggest consumer, and the 8g ceiling
+          # here was unreachable dead space: the rest of the stack already holds
+          # ~2.4GB of an 11GB budget. `.State.OOMKilled` reads false because the
+          # kill happens above Docker, at the LXC boundary.
+          # 4g is a real ceiling that leaves the stack room to coexist. If TEI
+          # is still SIGKILLed at 4g with ~1.2GB of fp16 weights, the honest
+          # conclusion is that bge-m3 on CPU does not fit on an 11GB LXC -- go
+          # back to open-webui's in-process embeddings rather than raise this.
+          memory: 4g
 
 volumes:
   # Named, not a bind mount: the deployer user must not need write access to the
