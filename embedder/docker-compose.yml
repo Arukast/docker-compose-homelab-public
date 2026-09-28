@@ -97,6 +97,10 @@ services:
       # `docker compose run --rm text-embeddings-inference --help` first -- an
       # unrecognised flag takes the service down, and while TEI is down
       # open-webui silently falls back to downloading the model itself.
+      # Caps tokenizer memory. Default 512 in flight is sized for a GPU serving
+      # many clients; on CPU it only buys contention and transient allocations.
+      - --max-concurrent-requests
+      - "32"
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:80/health || exit 1"]
       interval: 30s
@@ -109,8 +113,15 @@ services:
     deploy:
       resources:
         limits:
-          # Weights ~2.3GB, resident ~2.5GB with tokenization overhead.
-          memory: 3g
+          # 5g, not 3g. bge-m3 is an XLM-RoBERTa: ~2.27GB of weights, and the
+          # warmup forward pass builds an activation graph on top of that, so peak
+          # is ~4GB. Under 3g the kernel SIGKILLed it mid-warmup every time
+          # (exit 137, no error line -- the tell of a kill, not a crash). Note
+          # `.State.OOMKilled` reads FALSE here: the kill comes from the LXC
+          # host limit, not the container cgroup, so Docker never sets the flag.
+          # Don't drop this back to 3g without watching `docker stats` during
+          # warmup, and the LXC is 11GB total with the rest of the stack running.
+          memory: 5g
 
 volumes:
   # Named, not a bind mount: the deployer user must not need write access to the
