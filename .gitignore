@@ -11,5 +11,11 @@ dashboard/homarr
 *~
 .DS_Store
 
+# Runtime state: chat database, uploaded files, and the ~8GB embedding model
+# cache. Never commit these. Pipe functions live under functions/ inside this
+# tree and ARE committed -- they are source, not state.
+openwebui/open-webui-data/*
+!openwebui/open-webui-data/functions/
+
 # Get ignored for now because the workflows is not supported
 glances/glances/glances.conf

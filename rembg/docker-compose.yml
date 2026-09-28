@@ -1,0 +1,63 @@
+x-logging: &default-logging
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+services:
+  # Background removal for Open WebUI. Standalone HTTP service on port 7000,
+  # wired to the UI as an OpenAPI tool (paste http://rembg:7000/openapi.json
+  # into Workspace > Tools). No code, no rebuild.
+  #
+  # `s` at the end starts the HTTP server. Without it rembg is a REPL and
+  # nothing can talk to it.
+  #
+  # Model: u2net is the default and needs no configuration. rembg downloads it
+  # to /root/.u2net on first boot, ~176MB, which is why this sits on ai-net
+  # (egress) rather than shared-ai-backend-net. Once cached, it never re-downloads.
+  # Swap to `isnet-general-use` for hair/fur edges; u2net is fine for products
+  # and hard-edged subjects.
+  rembg:
+    image: danielgatis/rembg:2.0.85
+    container_name: ${REMBG_CONTAINER_NAME:-rembg}
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    <<: *default-logging
+    # Bound to loopback on the host: nothing on the LAN needs to hit this
+    # directly, Open WebUI reaches it over ai-net. Change HOST_IP to expose it
+    # if you want curl access from your workstation.
+    ports:
+      - "${HOST_IP:-127.0.0.1}:7000:7000"
+    volumes:
+      # Named volume so the 176MB model survives `docker compose down` and is
+      # not re-downloaded on every restart.
+      - rembg-models:/root/.u2net
+    command:
+      - s
+      - --no-ui
+    healthcheck:
+      # /health is the FastAPI health route. --no-ui keeps the Gradio web UI off
+      # the port so 7000 is API-only, which is what the OpenAPI tool expects.
+      test: ["CMD-SHELL", "python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:7000/health')\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      # First boot downloads u2net. start_period covers it.
+      start_period: 120s
+    networks: [ai-net]
+    deploy:
+      resources:
+        limits:
+          # Weights ~176MB; inference peaks around 1GB on a single image. 2g is
+          # ample for one request at a time and leaves the 11GB LXC room for
+          # open-webui (which sits at 3.4GB with the embedding model loaded).
+          memory: 2g
+
+volumes:
+  rembg-models:
+
+networks:
+  ai-net:
+    external: true
