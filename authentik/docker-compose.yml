@@ -1,0 +1,171 @@
+# Authentik -- identity provider (SSO / OIDC / LDAP / forward proxy).
+#
+# Services mirror the upstream compose.yml, with the repo's house style applied:
+# pinned image tag, no-new-privileges, cap_drop ALL plus only the caps each
+# image actually needs, json-file log rotation, memory limits, and named
+# volumes moved to bind mounts under this folder (upstream uses named volumes,
+# which are invisible to the backup tooling in this repo).
+#
+# No proxy service: upstream ships none. `server` serves the UI, /api/ and
+# /application/o/ from one process on one port, so cloudflared or NPM points
+# straight at it. See the note on 9443 below.
+#
+# No redis service: upstream ships none either. The cache and task queue fall
+# back to postgres when redis is not configured.
+#
+# Deliberately no /etc/localtime or /etc/timezone mount, unlike every other
+# service here. Authentik does all internal work in UTC and localizes only for
+# display; mounting the host zone breaks OAuth and SAML auth (upstream
+# documents this against a GitHub issue). If a future edit adds one back, that
+# is the reason it must not stay.
+
+x-logging: &default-logging
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+services:
+  postgresql:
+    image: docker.io/library/postgres:16-alpine
+    container_name: ${AUTHENTIK_CONTAINER_NAME}-postgres
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    <<: *default-logging
+    environment:
+      - POSTGRES_DB=${PG_DB:-authentik}
+      - POSTGRES_PASSWORD=${PG_PASS:?database password required}
+      - POSTGRES_USER=${PG_USER:-authentik}
+    volumes:
+      - ./postgresql:/var/lib/postgresql/data
+    healthcheck:
+      # $$ escapes the $ so compose hands it to the container, where it reads
+      # the POSTGRES_* vars set above. A bare $ gets interpolated by compose
+      # from .env and expands to empty when the name is not mirrored there.
+      test: ["CMD-SHELL", "pg_isready -d $${POSTGRES_DB} -U $${POSTGRES_USER}"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
+    networks: [auth-net]
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+
+  server:
+    image: ghcr.io/goauthentik/server:${AUTHENTIK_TAG}
+    container_name: ${AUTHENTIK_CONTAINER_NAME}-server
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    <<: *default-logging
+    command: server
+    environment:
+      - AUTHENTIK_POSTGRESQL__HOST=postgresql
+      - AUTHENTIK_POSTGRESQL__NAME=${PG_DB:-authentik}
+      - AUTHENTIK_POSTGRESQL__PASSWORD=${PG_PASS:?database password required}
+      - AUTHENTIK_POSTGRESQL__USER=${PG_USER:-authentik}
+      - AUTHENTIK_SECRET_KEY=${AUTHENTIK_SECRET_KEY:?secret key required}
+      # Wired by service name, not container name: compose puts a DNS record
+      # for every service on auth-net, so there is no second name to keep in
+      # sync with AUTHENTIK_CONTAINER_NAME.
+      - AUTHENTIK_BOOTSTRAP_EMAIL=${AUTHENTIK_BOOTSTRAP_EMAIL:-}
+      - AUTHENTIK_BOOTSTRAP_PASSWORD=${AUTHENTIK_BOOTSTRAP_PASSWORD:-}
+      - AUTHENTIK_DISABLE_UPDATE_CHECK=true
+    # 512mb, from upstream. Django's threaded workers use /dev/shm for
+    # cross-thread IPC; the 64mb default makes them fall back to the much
+    # slower disk-backed files and a busy authentik crawls.
+    shm_size: 512mb
+    volumes:
+      - ./data:/data
+      - ./custom-templates:/templates
+    ports:
+      - "${HOST_IP:-127.0.0.1}:9000:9000"
+      # 9443 is authentik's built-in TLS. Left off: cloudflared already
+      # terminates TLS upstream, and running both means a second cert to renew
+      # for a hop that never leaves the host. Enable only if something reaches
+      # this container without going through the tunnel.
+      # - "${HOST_IP:-127.0.0.1}:9443:9443"
+    depends_on:
+      postgresql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "ak health || exit 1"]
+      interval: 30s
+      timeout: 30s
+      retries: 5
+      # First boot runs every migration, then the setup flow. That is minutes,
+      # not seconds, so a slow migration must not read as a failed container.
+      start_period: 300s
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
+    networks: [auth-net, cloudflared-net]
+    deploy:
+      resources:
+        limits:
+          # Django + gunicorn + the model embedding worker. Spikes well past
+          # this during migrations; the limit is a backstop, not a budget.
+          memory: 1g
+
+  worker:
+    image: ghcr.io/goauthentik/server:${AUTHENTIK_TAG}
+    container_name: ${AUTHENTIK_CONTAINER_NAME}-worker
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    <<: *default-logging
+    command: worker
+    environment:
+      - AUTHENTIK_POSTGRESQL__HOST=postgresql
+      - AUTHENTIK_POSTGRESQL__NAME=${PG_DB:-authentik}
+      - AUTHENTIK_POSTGRESQL__PASSWORD=${PG_PASS:?database password required}
+      - AUTHENTIK_POSTGRESQL__USER=${PG_USER:-authentik}
+      - AUTHENTIK_SECRET_KEY=${AUTHENTIK_SECRET_KEY:?secret key required}
+      - AUTHENTIK_DISABLE_UPDATE_CHECK=true
+    shm_size: 512mb
+    # Upstream sets this. The worker writes to /certs and /data, which the
+    # image ships owned by root; dropping to a non-root user breaks the
+    # embedded-outpost cert renewal that is the whole point of this service.
+    # user: root
+    volumes:
+      # Grants the worker control of the Docker socket, i.e. root on this
+      # host. It needs this only to manage the embedded outpost containers.
+      # Remove both this line and the -user: root above if you do not run an
+      # embedded outpost; nothing else in authentik touches the socket.
+      # - /var/run/docker.sock:/var/run/docker.sock
+      - ./data:/data
+      - ./certs:/certs
+      - ./custom-templates:/templates
+    depends_on:
+      postgresql:
+        condition: service_healthy
+    # No healthcheck: nothing waits on the worker, and a celery ping probe
+    # costs more than it catches. Read `docker logs` on it instead.
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
+    networks: [auth-net]
+
+networks:
+  auth-net:
+    driver: bridge
+  # External so cloudflared can publish auth.example.com without a second copy
+  # of the tunnel. Create it first: docker network create cloudflared-net
+  cloudflared-net:
+    external: true
