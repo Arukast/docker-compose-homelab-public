@@ -101,12 +101,20 @@ services:
       postgresql:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "ak health || exit 1"]
+      # `ak healthcheck`, not `ak health`. The image's own HEALTHCHECK runs the
+      # former, and it is the only thing that works: the entrypoint script
+      # dispatches `healthcheck` (passing the container's mode, read from
+      # $TMPDIR/authentik-mode) but has no `health` case at all, so `ak health`
+      # falls through to `python -m manage health` -- and authentik defines no
+      # such management command. That exits non-zero on every run, which pins
+      # the container at unhealthy while the server itself is serving fine.
+      test: ["CMD", "ak", "healthcheck"]
       interval: 30s
       timeout: 30s
       retries: 5
       # First boot runs every migration, then the setup flow. That is minutes,
       # not seconds, so a slow migration must not read as a failed container.
+      # The image default start period (120s) is too short for a cold boot.
       start_period: 300s
     cap_drop:
       - ALL
@@ -153,8 +161,11 @@ services:
     depends_on:
       postgresql:
         condition: service_healthy
-    # No healthcheck: nothing waits on the worker, and a celery ping probe
-    # costs more than it catches. Read `docker logs` on it instead.
+    # No healthcheck declared here, so the image's own HEALTHCHECK
+    # (`ak healthcheck`, mode read from $TMPDIR/authentik-mode) applies -- that
+    # is what reports this container healthy in `docker ps`, not anything the
+    # compose file sets. Nothing waits on the worker, so a failed probe is
+    # informational only; read `docker logs` for its real state.
     cap_drop:
       - ALL
     cap_add:

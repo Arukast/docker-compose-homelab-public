@@ -19,3 +19,4 @@ openwebui/open-webui-data/*
 
 # Get ignored for now because the workflows is not supported
 glances/glances/glances.conf
+.commandcode
