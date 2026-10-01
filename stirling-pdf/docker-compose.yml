@@ -32,7 +32,10 @@ services:
       - SECURITY_ENABLELOGIN=${SECURITY_ENABLELOGIN:-true}
       - SYSTEM_DEFAULTLOCALE=${SYSTEM_DEFAULTLOCALE:-en-US}
     healthcheck:
-      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://127.0.0.1:8080/ || exit 1"]
+      # The image has curl but no wget, and with login enabled "/" redirects to
+      # the sign-in page. /api/v1/info/status is public and is what the image's
+      # own HEALTHCHECK probes, so it works both with and without login.
+      test: ["CMD-SHELL", "curl -fs --max-time 10 http://127.0.0.1:8080/api/v1/info/status || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
