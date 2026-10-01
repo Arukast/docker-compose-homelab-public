@@ -40,10 +40,12 @@ services:
       - RATE_LIMIT_PER_MIN=${RATE_LIMIT_PER_MIN:-1000}
       - SESSION_DURATION_HOURS=${SESSION_DURATION_HOURS:-168}
       - TRUST_PROXY=${TRUST_PROXY:-loopback,linklocal,uniquelocal}
-      # Runtime connection (least-privilege role, created at boot) and the
-      # privileged connection used only for migrations and grants.
-      - DATABASE_URL=postgres://${POSTGRES_APP_USER:-snapotter_app}:${POSTGRES_APP_PASSWORD:?app db password required}@postgres:5432/${POSTGRES_DB:-snapotter}
-      - DATABASE_MIGRATION_URL=postgres://${POSTGRES_USER:-snapotter}:${POSTGRES_PASSWORD:?db password required}@postgres:5432/${POSTGRES_DB:-snapotter}
+      # One connection string: the owner role owns the tables and serves
+      # requests. The least-privilege split (DATABASE_MIGRATION_URL plus a
+      # separate snapotter_app role) only ships in 2.3.0; against 2.2.0 the
+      # app never creates that role and crash-loops on
+      # `role "snapotter_app" does not exist`. Revisit when 2.3.0 is out.
+      - DATABASE_URL=postgres://${POSTGRES_USER:-snapotter}:${POSTGRES_PASSWORD:?db password required}@postgres:5432/${POSTGRES_DB:-snapotter}
       - REDIS_URL=redis://:${REDIS_PASSWORD:?redis password required}@redis:6379
     depends_on:
       postgres:
