@@ -55,3 +55,4 @@ services:
 networks:
   stirling-net:
     driver: bridge
+    internal: true

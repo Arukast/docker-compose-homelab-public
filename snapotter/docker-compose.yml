@@ -152,3 +152,4 @@ services:
 networks:
   snapotter-net:
     driver: bridge
+    internal: true

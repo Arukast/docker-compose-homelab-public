@@ -41,3 +41,4 @@ services:
 networks:
   cyberchef-net:
     driver: bridge
+    internal: true

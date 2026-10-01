@@ -44,3 +44,4 @@ services:
 networks:
   it-tools-net:
     driver: bridge
+    internal: true
