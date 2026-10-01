@@ -27,7 +27,6 @@ services:
       - ./pipeline:/pipeline
       - ./tessdata:/usr/share/tessdata
       - /etc/localtime:/etc/localtime:ro
-      - /etc/timezone:/etc/timezone:ro
     environment:
       - SECURITY_ENABLELOGIN=${SECURITY_ENABLELOGIN:-true}
       - SYSTEM_DEFAULTLOCALE=${SYSTEM_DEFAULTLOCALE:-en-US}
