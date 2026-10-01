@@ -22,10 +22,11 @@ services:
     ports:
       - "${HOST_IP:-127.0.0.1}:${STIRLING_PORT:-8082}:8080"
     volumes:
-      - ./configs:/configs
-      - ./logs:/logs
-      - ./pipeline:/pipeline
-      - ./tessdata:/usr/share/tessdata
+      # All persistent state lives under ./stirling-pdf/ next to this file.
+      - ./stirling-pdf/configs:/configs
+      - ./stirling-pdf/logs:/logs
+      - ./stirling-pdf/pipeline:/pipeline
+      - ./stirling-pdf/tessdata:/usr/share/tessdata
       - /etc/localtime:/etc/localtime:ro
     environment:
       - SECURITY_ENABLELOGIN=${SECURITY_ENABLELOGIN:-true}
