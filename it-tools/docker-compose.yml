@@ -44,4 +44,5 @@ services:
 networks:
   it-tools-net:
     driver: bridge
-    internal: true
+    # Not `internal: true`: Docker discards `ports:` on internal networks, so
+    # the HOST_IP binding above would never be published.
