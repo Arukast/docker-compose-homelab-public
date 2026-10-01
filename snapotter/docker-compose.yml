@@ -1,0 +1,154 @@
+x-logging: &default-logging
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+services:
+  # SnapOtter -- self-hosted file-processing stack (image, video, audio,
+  # PDF) with UI, REST API and pipelines. Adapted from the upstream
+  # docker/docker-compose.yml: the build section is dropped (prebuilt image
+  # only), named volumes become bind mounts under this folder (visible to
+  # backup tooling), ports bind to HOST_IP, and the app image is pinned.
+  # Postgres/Redis keep their upstream-pinned digests.
+  #
+  # First login is admin + SNAPOTTER_ADMIN_PASSWORD. Change it after boot.
+  snapotter:
+    image: snapotter/snapotter:2.2.0
+    container_name: ${SNAPOTTER_CONTAINER_NAME:-snapotter}
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    <<: *default-logging
+    ports:
+      # For internet-facing deployments, set HOST_IP to 127.0.0.1 (default)
+      # and reach it only through the tunnel/proxy.
+      - "${HOST_IP:-127.0.0.1}:${SNAPOTTER_PORT:-1349}:1349"
+    volumes:
+      - ./data:/data
+      - ./workspace:/tmp/workspace
+      - /etc/localtime:/etc/localtime:ro
+    environment:
+      - AUTH_ENABLED=true
+      - DEFAULT_USERNAME=admin
+      - DEFAULT_PASSWORD=${SNAPOTTER_ADMIN_PASSWORD:?admin password required}
+      - SKIP_MUST_CHANGE_PASSWORD=${SKIP_MUST_CHANGE_PASSWORD:-false}
+      - MAX_UPLOAD_SIZE_MB=${MAX_UPLOAD_SIZE_MB:-0}
+      - MAX_BATCH_SIZE=${MAX_BATCH_SIZE:-0}
+      - MAX_PIPELINE_STEPS=${MAX_PIPELINE_STEPS:-20}
+      - RATE_LIMIT_PER_MIN=${RATE_LIMIT_PER_MIN:-1000}
+      - SESSION_DURATION_HOURS=${SESSION_DURATION_HOURS:-168}
+      - TRUST_PROXY=${TRUST_PROXY:-loopback,linklocal,uniquelocal}
+      # Runtime connection (least-privilege role, created at boot) and the
+      # privileged connection used only for migrations and grants.
+      - DATABASE_URL=postgres://${POSTGRES_APP_USER:-snapotter_app}:${POSTGRES_APP_PASSWORD:?app db password required}@postgres:5432/${POSTGRES_DB:-snapotter}
+      - DATABASE_MIGRATION_URL=postgres://${POSTGRES_USER:-snapotter}:${POSTGRES_PASSWORD:?db password required}@postgres:5432/${POSTGRES_DB:-snapotter}
+      - REDIS_URL=redis://:${REDIS_PASSWORD:?redis password required}@redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    # Upstream's caps, kept as-shipped: the entrypoint drops from root to the
+    # snapotter user (needs SETUID/SETGID), and tini (PID 1, root) needs KILL
+    # to forward SIGTERM on shutdown, otherwise `docker stop` is ungraceful.
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
+      - DAC_OVERRIDE
+      - FOWNER
+      - KILL
+    shm_size: 2gb
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "--max-time", "5", "http://localhost:1349/api/v1/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    networks: [snapotter-net]
+    deploy:
+      resources:
+        limits:
+          # Upstream-tested: fast mode and every non-HQ tool fit in 6g. HQ
+          # erase-object (SD1.5 inpainting on CPU) needs >= 8g.
+          memory: 6g
+
+  postgres:
+    image: postgres:17-alpine@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193
+    container_name: ${SNAPOTTER_CONTAINER_NAME:-snapotter}-postgres
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    <<: *default-logging
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-snapotter}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?db password required}
+      - POSTGRES_DB=${POSTGRES_DB:-snapotter}
+    volumes:
+      - ./postgres:/var/lib/postgresql/data
+    healthcheck:
+      # $$ escapes the $ so compose hands it to the container; a bare $
+      # would be interpolated from .env and expand to empty.
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+    # The official image starts as root and su-execs down to postgres.
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETGID
+      - SETUID
+    networks: [snapotter-net]
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+
+  redis:
+    image: redis:8-alpine@sha256:9d317178eceac8454a2284a9e6df2466b93c745529947f0cd42a0fa9609d7005
+    container_name: ${SNAPOTTER_CONTAINER_NAME:-snapotter}-redis
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    <<: *default-logging
+    command: >-
+      redis-server
+      --maxmemory-policy noeviction
+      --maxmemory 512mb
+      --appendonly yes
+      --requirepass ${REDIS_PASSWORD:?redis password required}
+    volumes:
+      - ./redis:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a $${REDIS_PASSWORD} --no-auth-warning ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    # Same root-then-drop pattern as postgres.
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETGID
+      - SETUID
+    networks: [snapotter-net]
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+
+networks:
+  snapotter-net:
+    driver: bridge

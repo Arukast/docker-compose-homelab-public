@@ -1,0 +1,57 @@
+x-logging: &default-logging
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+services:
+  # Stirling-PDF -- self-hosted PDF toolkit (merge, split, compress, OCR,
+  # convert, sign). Serves one UI on 8080.
+  #
+  # Login is ON by default: a fresh boot creates admin / stirling. Change
+  # that password immediately after first login, or set
+  # SECURITY_ENABLELOGIN=false for a no-auth instance (LAN-only).
+  stirling-pdf:
+    image: docker.stirlingpdf.com/stirlingtools/stirling-pdf:3.0.0
+    container_name: ${STIRLING_CONTAINER_NAME:-stirling-pdf}
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    <<: *default-logging
+    ports:
+      - "${HOST_IP:-127.0.0.1}:${STIRLING_PORT:-8082}:8080"
+    volumes:
+      - ./configs:/configs
+      - ./logs:/logs
+      - ./pipeline:/pipeline
+      - ./tessdata:/usr/share/tessdata
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+    environment:
+      - SECURITY_ENABLELOGIN=${SECURITY_ENABLELOGIN:-true}
+      - SYSTEM_DEFAULTLOCALE=${SYSTEM_DEFAULTLOCALE:-en-US}
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://127.0.0.1:8080/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      # Java + LibreOffice boot is slow; a cold start must not read as failed.
+      start_period: 120s
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
+    networks: [stirling-net]
+    deploy:
+      resources:
+        limits:
+          # Spring Boot + LibreOffice. Spikes past this under heavy OCR; the
+          # limit is a backstop, not a budget.
+          memory: 2g
+
+networks:
+  stirling-net:
+    driver: bridge

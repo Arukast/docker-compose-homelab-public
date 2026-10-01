@@ -1,0 +1,45 @@
+x-logging: &default-logging
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+services:
+  # Web-Check -- all-in-one OSINT website analyzer (DNS, Whois, SSL chain,
+  # headers, tech stack, ports). Ships its own Chromium; stateless.
+  web-check:
+    image: lissy93/web-check:2.2.8
+    container_name: ${WEBCHECK_CONTAINER_NAME:-web-check}
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    <<: *default-logging
+    ports:
+      # 3001, not the upstream 3000: adguard runs in host network mode on
+      # this fleet and already occupies host port 3000.
+      - "${HOST_IP:-127.0.0.1}:${WEBCHECK_PORT:-3001}:3000"
+    healthcheck:
+      # Mirrors the image's own HEALTHCHECK (node healthcheck.js in /app).
+      test: ["CMD", "node", "healthcheck.js"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
+    networks: [web-check-net]
+    deploy:
+      resources:
+        limits:
+          # Node + headless Chromium (traceroute/ping probes need no extra
+          # caps to run, only to get accurate raw-socket results).
+          memory: 1g
+
+networks:
+  web-check-net:
+    driver: bridge
