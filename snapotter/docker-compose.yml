@@ -120,6 +120,11 @@ services:
     security_opt:
       - no-new-privileges:true
     <<: *default-logging
+    # Read by the healthcheck below: its $$ keeps compose from interpolating
+    # the test string, so REDIS_PASSWORD must exist inside the container.
+    # Without it the shell expands the name to empty and auth always fails.
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD:?redis password required}
     command: >-
       redis-server
       --maxmemory-policy noeviction
