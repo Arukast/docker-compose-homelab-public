@@ -41,7 +41,16 @@ services:
     cap_drop:
       - ALL
     cap_add:
+      # The image starts as root and its entrypoint chowns/chmods its own dirs
+      # (/tmp/stirling-pdf owned by uid 1000, /var/lib/libreoffice-sandbox owned
+      # by uid 1100) and then drops privileges. Without DAC_OVERRIDE/FOWNER those
+      # setup steps fail with EACCES and the entrypoint aborts under `set -e`,
+      # causing a restart loop. KILL is needed to signal the dropped-privilege
+      # Java/unoserver processes on shutdown.
       - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - KILL
       - SETUID
       - SETGID
     networks: [stirling-net]
