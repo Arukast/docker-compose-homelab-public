@@ -126,6 +126,7 @@ services:
       --maxmemory 512mb
       --appendonly yes
       --requirepass ${REDIS_PASSWORD:?redis password required}
+    user: "999:999"
     volumes:
       - ./redis:/data
     healthcheck:
