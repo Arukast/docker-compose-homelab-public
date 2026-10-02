@@ -160,5 +160,7 @@ services:
 networks:
   snapotter-net:
     driver: bridge
+    driver_opts:
+      com.docker.network.driver.mtu: "1492"
     # Not `internal: true`: Docker discards `ports:` on internal networks, so
     # the HOST_IP binding above would never be published.
