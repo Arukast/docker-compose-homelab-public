@@ -47,6 +47,8 @@ services:
       # `role "snapotter_app" does not exist`. Revisit when 2.3.0 is out.
       - DATABASE_URL=postgres://${POSTGRES_USER:-snapotter}:${POSTGRES_PASSWORD:?db password required}@postgres:5432/${POSTGRES_DB:-snapotter}
       - REDIS_URL=redis://:${REDIS_PASSWORD:?redis password required}@redis:6379
+      - INSTALL_STALL_MS=0          # disable the no-progress kill
+      - INSTALL_MAX_MS=0            # disable the 2h ceiling
     depends_on:
       postgres:
         condition: service_healthy
