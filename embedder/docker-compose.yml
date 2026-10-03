@@ -129,6 +129,11 @@ services:
       # Root process serving /health on :80; privileged-port binds are lost
       # once ALL is dropped.
       - NET_BIND_SERVICE
+      # ./tei-cache may be deployer-owned like every other bind-mount data dir
+      # on this fleet (old setup-target.sh chown -R); root needs these to
+      # write cache files beside it.
+      - DAC_OVERRIDE
+      - FOWNER
     networks: [ai-backend-net]
     deploy:
       resources:

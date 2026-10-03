@@ -45,6 +45,12 @@ services:
       - CHOWN
       - SETUID
       - SETGID
+      # ./hermes-data and the s6 supervise trees are deployer-owned on this
+      # fleet (old setup-target.sh chown -R); root needs DAC_OVERRIDE to
+      # create /opt/data/.env and to control the service fifos, FOWNER for
+      # chmod on the same files.
+      - DAC_OVERRIDE
+      - FOWNER
     networks: [ai-net]
     deploy:
       resources:

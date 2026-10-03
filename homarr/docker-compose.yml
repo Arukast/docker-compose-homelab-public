@@ -41,6 +41,11 @@ services:
       - CHOWN
       - SETUID
       - SETGID
+      # ./homarr/appdata is deployer-owned on this fleet (old setup-target.sh
+      # chown -R); root lost write access to /appdata/redis with ALL dropped,
+      # which killed every RDB save. FOWNER covers chmod on the same files.
+      - DAC_OVERRIDE
+      - FOWNER
     deploy:
       resources:
         limits:

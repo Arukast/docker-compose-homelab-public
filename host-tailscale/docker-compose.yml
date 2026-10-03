@@ -15,6 +15,12 @@ services:
       # so nothing else survives the drop.
       - NET_ADMIN
       - NET_RAW
+      # ./tailscale/state is deployer-owned (old setup-target.sh chown -R);
+      # without DAC_OVERRIDE root cannot open tailscaled.state, the state
+      # store fails to initialize and the backend refuses to start. FOWNER
+      # covers the chmod tailscaled applies on state migration.
+      - DAC_OVERRIDE
+      - FOWNER
     environment:
       - TS_STATE_DIR=/var/lib/tailscale
       - TS_USERSPACE=${TS_USERSPACE}

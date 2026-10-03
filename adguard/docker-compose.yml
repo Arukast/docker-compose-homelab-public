@@ -26,6 +26,11 @@ services:
       - NET_BIND_SERVICE
       - NET_ADMIN
       - NET_RAW
+      # work/conf on this fleet is deployer-owned (the old setup-target.sh ran
+      # chown -R over the checkout). Root loses access to leases.json without
+      # DAC_OVERRIDE and AGH fatal-loops on DHCP init; FOWNER covers chmod.
+      - DAC_OVERRIDE
+      - FOWNER
     deploy:
       resources:
         limits:
