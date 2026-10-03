@@ -52,7 +52,15 @@ services:
     cap_drop:
       - ALL
     cap_add:
+      # The image starts as root, chowns/chmods PGDATA and /var/run/postgresql
+      # (both owned by uid 70 once initdb has run), then gosu's down to postgres.
+      # Without FOWNER those chmod calls fail with EPERM, and without
+      # DAC_OVERRIDE the entrypoint's `find "$PGDATA" -exec chown` gets EACCES on
+      # the mode-700 data dir. That find has no `|| :` guard and runs under
+      # `set -e`, so it aborts the entrypoint and the container restart-loops.
       - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
       - SETUID
       - SETGID
     networks: [auth-net]
