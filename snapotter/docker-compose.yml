@@ -30,28 +30,33 @@ services:
       - ./workspace:/tmp/workspace
       - /etc/localtime:/etc/localtime:ro
     environment:
-      - AUTH_ENABLED=true
-      - DEFAULT_USERNAME=admin
-      - DEFAULT_PASSWORD=${SNAPOTTER_ADMIN_PASSWORD:?admin password required}
+      # Auth
+      - AUTH_ENABLED=${AUTH_ENABLED:-true}
+      - DEFAULT_USERNAME=${DEFAULT_USERNAME:?admin username required}
+      - DEFAULT_PASSWORD=${DEFAULT_PASSWORD:?admin password required}
       - SKIP_MUST_CHANGE_PASSWORD=${SKIP_MUST_CHANGE_PASSWORD:-false}
+      - SESSION_DURATION_HOURS=${SESSION_DURATION_HOURS:-168}
+      # Config
       - MAX_UPLOAD_SIZE_MB=${MAX_UPLOAD_SIZE_MB:-0}
       - MAX_BATCH_SIZE=${MAX_BATCH_SIZE:-0}
       - MAX_PIPELINE_STEPS=${MAX_PIPELINE_STEPS:-20}
       - RATE_LIMIT_PER_MIN=${RATE_LIMIT_PER_MIN:-1000}
-      - SESSION_DURATION_HOURS=${SESSION_DURATION_HOURS:-168}
       - TRUST_PROXY=${TRUST_PROXY:-loopback,linklocal,uniquelocal}
-      # One connection string: the owner role owns the tables and serves
-      # requests. The least-privilege split (DATABASE_MIGRATION_URL plus a
-      # separate snapotter_app role) only ships in 2.3.0; against 2.2.0 the
-      # app never creates that role and crash-loops on
-      # `role "snapotter_app" does not exist`. Revisit when 2.3.0 is out.
+      # Database
       - DATABASE_URL=postgres://${POSTGRES_USER:-snapotter}:${POSTGRES_PASSWORD:?db password required}@postgres:5432/${POSTGRES_DB:-snapotter}
       - REDIS_URL=redis://:${REDIS_PASSWORD:?redis password required}@redis:6379
-      - INSTALL_STALL_MS=7200000        # kill if no progress for 2 hours
-      - INSTALL_MAX_MS=0            # disable the 2h ceiling
-      - HF_HUB_ENABLE_HF_TRANSFER=0    # disable the parallel Rust downloader
-      - HF_HUB_DISABLE_XET=1           # disable xet
-      - HF_HUB_DOWNLOAD_TIMEOUT=60     # read timeout per chunk, so a dead socket errors out
+      # AI Features Installation
+      - INSTALL_STALL_MS=${INSTALL_STALL_MS:-7200000}        # kill if no progress for 2 hours
+      - INSTALL_MAX_MS=${INSTALL_MAX_MS:-0}            # disable the 2h ceiling
+      - HF_HUB_ENABLE_HF_TRANSFER=${HF_HUB_ENABLE_HF_TRANSFER:-0}    # disable the parallel Rust downloader
+      - HF_HUB_DISABLE_XET=${HF_HUB_DISABLE_XET:-1}           # disable xet
+      - HF_HUB_DOWNLOAD_TIMEOUT=${HF_HUB_DOWNLOAD_TIMEOUT:-60}     # read timeout per chunk, so a dead socket errors out
+      # OIDC
+      - EXTERNAL_URL=${EXTERNAL_URL}
+      - OIDC_ENABLED=${OIDC_ENABLED}
+      - OIDC_ISSUER_URL=${OIDC_ISSUER_URL}
+      - OIDC_CLIENT_ID=${OIDC_CLIENT_ID}
+      - OIDC_CLIENT_SECRET=${OIDC_CLIENT_SECRET}
     depends_on:
       postgres:
         condition: service_healthy
