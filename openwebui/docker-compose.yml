@@ -36,6 +36,8 @@ services:
       # message costs a few hundred tokens instead of a pre-allocated 8192.
       # It is on ai-net, which has egress, so sentence-transformers fetches the
       # weights on first boot into ./open-webui-data/cache/embedding.
+      # Forces Open WebUI to override DB settings with environment variables
+      - ENABLE_PERSISTENT_CONFIG=${ENABLE_PERSISTENT_CONFIG}
       - RAG_EMBEDDING_ENGINE=sentence-transformers
       - RAG_EMBEDDING_MODEL=${RAG_EMBEDDING_MODEL:-BAAI/bge-m3}
       - RAG_EMBEDDING_ENGINE_MODEL_ID=${RAG_EMBEDDING_MODEL:-BAAI/bge-m3}
