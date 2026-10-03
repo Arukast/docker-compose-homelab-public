@@ -1,6 +1,6 @@
 services:
   glances:
-    image: nicolargo/glances:4.5.7-full
+    image: nicolargo/glances:4.5.7-full@sha256:af1b6ccd3c33f7ac821e30b7dd58946542ce3e252b225dc3d678a1ca48f1007b
     container_name: glances
     restart: unless-stopped
     security_opt:
@@ -16,6 +16,10 @@ services:
       - /proc:/rootfs/proc:ro
       - /sys:/rootfs/sys:ro
       - /etc/os-release:/rootfs/etc/os-release:ro
+    # Reads /proc, /sys and the host PID namespace through ro mounts and serves
+    # only high ports; none of that needs a capability.
+    cap_drop:
+      - ALL
     deploy:
       resources:
         limits:

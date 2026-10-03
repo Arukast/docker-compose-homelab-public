@@ -7,7 +7,7 @@ x-logging: &default-logging
 
 services:
   omniroute:
-    image: diegosouzapw/omniroute:3.8.51
+    image: diegosouzapw/omniroute:3.8.51@sha256:8bd462c9f60d8eda79329cfbb6ea7ea723505fe7721beb944f3d43835409e218
     container_name: ${OMNIROUTE_CONTAINER_NAME:-omniroute}
     restart: unless-stopped
     security_opt:
@@ -41,6 +41,10 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+    # Image already runs as USER node, which holds no effective capability;
+    # dropping ALL changes nothing at runtime and documents the intent.
+    cap_drop:
+      - ALL
     networks: [ai-net, ai-backend-net]
     deploy:
       resources:
@@ -51,7 +55,7 @@ services:
           cpus: "2.0"
 
   redis:
-    image: redis:8-alpine
+    image: redis:8-alpine@sha256:3811787313eba226a2ef38658c6ccb91cd5e110edc89c37767de373120a0e5a0
     container_name: ${REDIS_CONTAINER_NAME:-omniroute-redis}
     restart: unless-stopped
     <<: *default-logging

@@ -1,13 +1,18 @@
 services:
   tailscale:
-    image: tailscale/tailscale:v1.102.5
+    image: tailscale/tailscale:v1.102.5@sha256:c507f3a2a6ab1cabd8d809b98edeb41edbd5c3fb6ad9632ffd098b4c7d0b4065
     container_name: ${TAILSCALE_CONTAINER_NAME}
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true
     hostname: ${HOSTNAME}
     network_mode: "host"
+    cap_drop:
+      - ALL
     cap_add:
+      # NET_ADMIN: configure interfaces and routes for the tailnet.
+      # NET_RAW: disco/STUN probing. Tailscaled itself serves only 41641/udp,
+      # so nothing else survives the drop.
       - NET_ADMIN
       - NET_RAW
     environment:

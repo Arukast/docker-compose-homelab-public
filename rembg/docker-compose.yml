@@ -19,7 +19,7 @@ services:
   # Swap to `isnet-general-use` for hair/fur edges; u2net is fine for products
   # and hard-edged subjects.
   rembg:
-    image: danielgatis/rembg:2.0.85
+    image: danielgatis/rembg:2.0.85@sha256:98e72b790093dec3b21967e22c8eb75a0a67d458fdba7ef5fcc1900cad76396b
     container_name: ${REMBG_CONTAINER_NAME:-rembg}
     restart: unless-stopped
     security_opt:
@@ -49,6 +49,9 @@ services:
       # First real request downloads u2net (~176MB) into the volume. That is
       # inference time, not startup, so start_period only has to cover boot.
       start_period: 60s
+    # Direct binary on a high port, writing its own root-owned model volume.
+    cap_drop:
+      - ALL
     networks: [ai-net]
     deploy:
       resources:

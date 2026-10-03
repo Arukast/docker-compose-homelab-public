@@ -1,6 +1,6 @@
 services:
   adguard:
-    image: adguard/adguardhome:v0.107.79
+    image: adguard/adguardhome:v0.107.79@sha256:aba9e3bf0613be3ba3755e1fc311b126e2c24bec25e18b6483894a88283074f0
     container_name: ${ADGUARD_CONTAINER_NAME}
     restart: unless-stopped
     security_opt:
@@ -17,6 +17,15 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
+    cap_drop:
+      - ALL
+    cap_add:
+      # DNS on 53 over host networking needs NET_BIND_SERVICE once ALL is
+      # dropped. NET_ADMIN + NET_RAW are what the built-in DHCP server needs
+      # for its broadcast/raw sockets; inert when DHCP is disabled.
+      - NET_BIND_SERVICE
+      - NET_ADMIN
+      - NET_RAW
     deploy:
       resources:
         limits:

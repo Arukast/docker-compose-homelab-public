@@ -1,6 +1,6 @@
 services:
   homarr:
-    image: ghcr.io/homarr-labs/homarr:v2.0.0
+    image: ghcr.io/homarr-labs/homarr:v2.0.0@sha256:3eeef80bfc58f6588844e9405da47550f681006d3019005a34f9388b5c00eb73
     container_name: ${HOMARR_CONTAINER_NAME}
     restart: unless-stopped
     security_opt:
@@ -33,6 +33,14 @@ services:
       timeout: 5s
       retries: 3
       start_period: 40s
+    cap_drop:
+      - ALL
+    cap_add:
+      # /app/entrypoint.sh runs first as root; keep the house trio so a chown
+      # or privilege drop inside it cannot EPERM once ALL is dropped.
+      - CHOWN
+      - SETUID
+      - SETGID
     deploy:
       resources:
         limits:

@@ -8,7 +8,7 @@
   "packageRules": [
     {
       "matchPackagePatterns": ["*"],
-      "pinDigests": false
+      "pinDigests": true
     }
   ]
 }

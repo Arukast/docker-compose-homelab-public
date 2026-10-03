@@ -7,7 +7,7 @@ x-logging: &default-logging
 
 services:
   litellm-proxy:
-    image: ghcr.io/berriai/litellm:v1.103.2
+    image: ghcr.io/berriai/litellm:v1.103.2@sha256:f63fb81b831b170ec16851e23c36ac5bf52ef106b271406429524a2ed730bbfd
     container_name: ${LITELLM_PROXY_CONTAINER_NAME:-litellm-proxy}
     restart: unless-stopped
     security_opt:
@@ -37,6 +37,14 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+    cap_drop:
+      - ALL
+    cap_add:
+      # docker/prod_entrypoint.sh runs first as root; keep the house trio so a
+      # chown or privilege drop inside it cannot EPERM once ALL is dropped.
+      - CHOWN
+      - SETUID
+      - SETGID
     networks: [ai-net, ai-backend-net]
     deploy:
       resources:
@@ -47,7 +55,7 @@ services:
           cpus: "1.0"
 
   postgres:
-    image: postgres:18-alpine
+    image: postgres:18-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873
     container_name: litellm-db
     restart: unless-stopped
     environment:
@@ -62,6 +70,17 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    cap_drop:
+      - ALL
+    cap_add:
+      # Same set as authentik/postgres: the entrypoint starts as root, chowns/
+      # chmods PGDATA and /var/run/postgresql, then gosu's down to postgres.
+      # Without FOWNER/DAC_OVERRIDE those setup calls fail and initdb aborts.
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETUID
+      - SETGID
     deploy:
       resources:
         limits:

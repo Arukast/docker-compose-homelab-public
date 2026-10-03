@@ -28,7 +28,7 @@ x-logging: &default-logging
 
 services:
   postgresql:
-    image: docker.io/library/postgres:18-alpine
+    image: docker.io/library/postgres:18-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873
     container_name: ${AUTHENTIK_CONTAINER_NAME}-postgres
     restart: unless-stopped
     security_opt:
@@ -72,7 +72,7 @@ services:
           cpus: "1.0"
 
   server:
-    image: ghcr.io/goauthentik/server:${AUTHENTIK_TAG}
+    image: ghcr.io/goauthentik/server:2026.8.3@sha256:ab9b4e8cc4ab3f8d1198d2db6aeea66bafea1963b3f2843589e0d163f97d9849
     container_name: ${AUTHENTIK_CONTAINER_NAME}-server
     restart: unless-stopped
     security_opt:
@@ -142,7 +142,7 @@ services:
           cpus: "1.0"
 
   worker:
-    image: ghcr.io/goauthentik/server:${AUTHENTIK_TAG}
+    image: ghcr.io/goauthentik/server:2026.8.3@sha256:ab9b4e8cc4ab3f8d1198d2db6aeea66bafea1963b3f2843589e0d163f97d9849
     container_name: ${AUTHENTIK_CONTAINER_NAME}-worker
     restart: unless-stopped
     security_opt:

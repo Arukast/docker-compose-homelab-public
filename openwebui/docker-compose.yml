@@ -53,6 +53,15 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
+    cap_drop:
+      - ALL
+    cap_add:
+      # ./open-webui-data is deployer-owned (functions/ is tracked in git), so
+      # the root process creating files inside it needs DAC_OVERRIDE/FOWNER;
+      # CHOWN covers start.sh re-owning the directory.
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
     networks: [ai-net, ai-backend-net]
     deploy:
       resources:

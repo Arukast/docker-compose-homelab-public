@@ -1,6 +1,6 @@
 services:
   nginx-proxy-manager:
-    image: jc21/nginx-proxy-manager:2.16.0
+    image: jc21/nginx-proxy-manager:2.16.0@sha256:4393e642e233e5efd5adeb7f10918d4aaea71c9ed875b94190273fc8e87f9594
     container_name: ${NPM_CONTAINER_NAME}
     restart: unless-stopped
     security_opt:
@@ -23,6 +23,18 @@ services:
       timeout: 5s
       retries: 3
       start_period: 20s
+    cap_drop:
+      - ALL
+    cap_add:
+      # Binds 80/443/81 in-container, so NET_BIND_SERVICE survives the drop.
+      # /init may chown/chmod /data and spawn the nginx workers below root,
+      # hence the file trio (same set the postgres entrypoints need).
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETUID
+      - SETGID
+      - NET_BIND_SERVICE
     deploy:
       resources:
         limits:

@@ -18,7 +18,7 @@ services:
   # EMBED_MODEL is not read from .env (there is none); override by exporting it
   # before `docker compose up`, which rewrites nothing on disk.
   model-fetch:
-    image: python:3.14-slim
+    image: python:3.14-slim@sha256:0741d101873c12ab927e6f8653feb8862b9bd58771177acb1b885b95141f91b4
     container_name: ${TEI_FETCH_CONTAINER_NAME:-tei-model-fetch}
     restart: "no"
     security_opt:
@@ -48,6 +48,10 @@ services:
         ignore_patterns=['Onnx/*', 'onnx/*', '*.onnx', 'Imgs/*', '*.jpg', \
         'Colbert_linear.pt', 'Sparse_linear.pt', '*.md'])"
         echo "model downloaded"
+    # One-shot root container: pip into the image's own site-packages and write
+    # its root-owned volume. No ports, no privilege drop.
+    cap_drop:
+      - ALL
     deploy:
       resources:
         limits:
@@ -65,7 +69,7 @@ services:
   # Internal network only: by the time it starts, the weights are already in the
   # tei-model volume, so it never needs egress.
   text-embeddings-inference:
-    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.8
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.8@sha256:8de25e75ce39617f17f2f6c77d60a4f75b65e779ed5005420eb1400072a15c1c
     container_name: ${TEI_CONTAINER_NAME:-text-embeddings-inference}
     restart: unless-stopped
     security_opt:
@@ -119,6 +123,12 @@ services:
       # Loading 2.3GB of weights from the volume into RAM. start_period must
       # outlast it or the container is marked unhealthy mid-startup.
       start_period: 300s
+    cap_drop:
+      - ALL
+    cap_add:
+      # Root process serving /health on :80; privileged-port binds are lost
+      # once ALL is dropped.
+      - NET_BIND_SERVICE
     networks: [ai-backend-net]
     deploy:
       resources:

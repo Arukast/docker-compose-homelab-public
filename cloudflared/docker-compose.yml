@@ -1,6 +1,6 @@
 services:
   cloudflared:
-    image: cloudflare/cloudflared:2026.9.3
+    image: cloudflare/cloudflared:2026.9.3@sha256:072c067d25ccbe61d46e18f0d0723255f2bb5304f7317caa95b27031520ff92c
     container_name: ${CLOUDFLARED_CONTAINER_NAME}
     restart: unless-stopped
     security_opt:
@@ -9,6 +9,10 @@ services:
       - /etc/localtime:/etc/localtime:ro
       - /etc/timezone:/etc/timezone:ro
     command: ${COMMAND}
+    # Image runs as 65532 and only opens outbound connections to Cloudflare;
+    # nothing in this container needs a capability.
+    cap_drop:
+      - ALL
     networks:
       - cloudflared-net
     environment:

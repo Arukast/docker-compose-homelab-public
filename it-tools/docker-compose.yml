@@ -14,7 +14,7 @@ services:
   # while sharevb tracks upstream and publishes date-pinned tags. It serves
   # on 8080 (nginx-unprivileged base), not 80.
   it-tools:
-    image: sharevb/it-tools:2026.9.27
+    image: sharevb/it-tools:2026.9.27@sha256:a49111cc027bbd04110beb2a3baf5ebc84e07f1f97589919efba619798215e6c
     container_name: ${IT_TOOLS_CONTAINER_NAME:-it-tools}
     restart: unless-stopped
     security_opt:

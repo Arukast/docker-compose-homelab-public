@@ -1,6 +1,6 @@
 services:
   docker-socket-proxy:
-    image: tecnativa/docker-socket-proxy:0.5.0
+    image: tecnativa/docker-socket-proxy:v0.5.0@sha256:1f5038b54f06c3e18422902cf00ba21803d1c97805aae032e5e6673d532d3459
     container_name: docker-socket-proxy
     restart: unless-stopped
     security_opt:
@@ -36,6 +36,10 @@ services:
       timeout: 5s
       retries: 3
       start_period: 5s
+    # HAProxy on :2375 (a high port) reading a root-owned docker.sock: root is
+    # the file owner, so no capability is involved.
+    cap_drop:
+      - ALL
     deploy:
       resources:
         limits:
@@ -45,7 +49,7 @@ services:
           cpus: "0.5"
 
   portainer:
-    image: portainer/portainer-ce:2.45.1
+    image: portainer/portainer-ce:2.45.1@sha256:4d616db18cfeb5dd41a69c0958bc825c84483ea9cde1106eb82a5d26f3bd8b0e
     container_name: portainer-server
     restart: unless-stopped
     command: -H tcp://docker-socket-proxy:2375
@@ -68,6 +72,10 @@ services:
     depends_on:
       docker-socket-proxy:
         condition: service_healthy
+    # Serves :9443 (a high port) and writes its root-owned named volume over a
+    # TCP proxy -- no privileged operation survives the drop.
+    cap_drop:
+      - ALL
     deploy:
       resources:
         limits:

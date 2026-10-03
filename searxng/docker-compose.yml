@@ -7,7 +7,7 @@ x-logging: &default-logging
 
 services:
   searxng:
-    image: docker.io/searxng/searxng:2026.9.23-783a09462
+    image: docker.io/searxng/searxng:2026.9.23-783a09462@sha256:5ea5f6804364e6075a44cb776a291a6ca1715380d653c8a4784ede436d5080cf
     container_name: ${SEARXNG_CONTAINER_NAME:-searxng}
     restart: unless-stopped
     security_opt:

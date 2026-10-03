@@ -7,7 +7,7 @@ x-logging: &default-logging
 
 services:
   hermes-agent:
-    image: nousresearch/hermes-agent:v2026.9.24
+    image: nousresearch/hermes-agent:v2026.9.24@sha256:fca358f12efd65bfaaca05884166f15c0e2788375ca30d77061ac1ebc96452b7
     working_dir: /opt/data
     container_name: ${HERMES_CONTAINER_NAME:-hermes-agent}
     restart: unless-stopped
@@ -37,6 +37,14 @@ services:
       timeout: 10s
       retries: 3
       start_period: 20s
+    cap_drop:
+      - ALL
+    cap_add:
+      # entrypoint-dispatch.sh runs first as root; keep the house trio so a
+      # chown or privilege drop inside it cannot EPERM once ALL is dropped.
+      - CHOWN
+      - SETUID
+      - SETGID
     networks: [ai-net]
     deploy:
       resources:
