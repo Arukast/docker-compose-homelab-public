@@ -47,8 +47,11 @@ services:
       # `role "snapotter_app" does not exist`. Revisit when 2.3.0 is out.
       - DATABASE_URL=postgres://${POSTGRES_USER:-snapotter}:${POSTGRES_PASSWORD:?db password required}@postgres:5432/${POSTGRES_DB:-snapotter}
       - REDIS_URL=redis://:${REDIS_PASSWORD:?redis password required}@redis:6379
-      - INSTALL_STALL_MS=900000     # kill if no progress for 15 min
+      - INSTALL_STALL_MS=600000        # kill if no progress for 10 min
       - INSTALL_MAX_MS=0            # disable the 2h ceiling
+      - HF_HUB_ENABLE_HF_TRANSFER=0    # disable the parallel Rust downloader
+      - HF_HUB_DISABLE_XET=1           # disable xet
+      - HF_HUB_DOWNLOAD_TIMEOUT=60     # read timeout per chunk, so a dead socket errors out
     depends_on:
       postgres:
         condition: service_healthy
