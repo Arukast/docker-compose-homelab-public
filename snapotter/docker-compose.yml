@@ -86,7 +86,7 @@ services:
           cpus: "4.0"
 
   postgres:
-    image: postgres:17-alpine@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193
+    image: postgres:18-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873
     container_name: ${SNAPOTTER_CONTAINER_NAME:-snapotter}-postgres
     restart: unless-stopped
     security_opt:
