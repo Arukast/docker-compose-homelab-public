@@ -17,3 +17,11 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
+    deploy:
+      resources:
+        limits:
+          # No official sizing published. Steady state is ~300MB but a
+          # filter-list rebuild transiently peaks near 890MiB
+          # (AdGuardHome #8498), so 1g covers the spike.
+          memory: 1g
+          cpus: "1.0"

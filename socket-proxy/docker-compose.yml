@@ -42,6 +42,7 @@ services:
         limits:
           # no limit before -> unbounded. Uses ~20MiB.
           memory: 128m
+          cpus: "0.5"
 
 networks:
   socket-proxy-net:

@@ -40,6 +40,7 @@ services:
         limits:
           # Static frontend, ~90MB image. 128m is ample.
           memory: 128m
+          cpus: "0.5"
 
 networks:
   it-tools-net:

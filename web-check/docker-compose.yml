@@ -39,6 +39,7 @@ services:
           # Node + headless Chromium (traceroute/ping probes need no extra
           # caps to run, only to get accurate raw-socket results).
           memory: 1g
+          cpus: "2.0"
 
 networks:
   web-check-net:

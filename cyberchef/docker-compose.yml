@@ -37,6 +37,7 @@ services:
         limits:
           # Static frontend, ~120MB image. 128m is ample.
           memory: 128m
+          cpus: "0.5"
 
 networks:
   cyberchef-net:

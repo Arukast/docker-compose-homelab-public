@@ -80,6 +80,7 @@ services:
           # Upstream-tested: fast mode and every non-HQ tool fit in 6g. HQ
           # erase-object (SD1.5 inpainting on CPU) needs >= 8g.
           memory: 8g
+          cpus: "4.0"
 
   postgres:
     image: postgres:17-alpine@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193
@@ -115,7 +116,9 @@ services:
     deploy:
       resources:
         limits:
+          # Idle OLTP for one app; default shared_buffers (128MB) fits easily.
           memory: 1g
+          cpus: "1.0"
 
   redis:
     image: redis:8-alpine@sha256:9d317178eceac8454a2284a9e6df2466b93c745529947f0cd42a0fa9609d7005
@@ -157,7 +160,9 @@ services:
     deploy:
       resources:
         limits:
+          # --maxmemory 512mb above; 1g headroom for AOF rewrite and COW.
           memory: 1g
+          cpus: "1.0"
 
 networks:
   snapotter-net:

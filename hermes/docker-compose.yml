@@ -43,6 +43,7 @@ services:
         limits:
           # was 512m, running at 61.7% -- close to OOM on a busy agent turn
           memory: 768m
+          cpus: "1.0"
 
 networks:
   ai-net:

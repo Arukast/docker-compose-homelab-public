@@ -58,6 +58,7 @@ services:
           # embedding call. This is the real cost of in-process embeddings --
           # chat and RAG share one ceiling.
           memory: 5g
+          cpus: "2.0"
 
 networks:
   ai-net:

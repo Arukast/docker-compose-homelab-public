@@ -44,6 +44,7 @@ services:
           # must clear 1g or the worker is OOM-killed on first request. 2g covers
           # the model plus request-time headroom.
           memory: 2g
+          cpus: "1.0"
 
   presidio-anonymizer:
     image: ghcr.io/data-privacy-stack/presidio-anonymizer:2.2.364
@@ -69,7 +70,9 @@ services:
     deploy:
       resources:
         limits:
+          # Stateless transform step; no model loaded, footprint stays small.
           memory: 256m
+          cpus: "0.5"
 
 networks:
   ai-backend-net:

@@ -41,8 +41,10 @@ services:
     deploy:
       resources:
         limits:
-          # was 512m, ran at 95.77% with the DB attached
-          memory: 1g
+          # Official prod docs floor: "1 vCPU and 4Gi … a floor rather than a
+          # target" (docs.litellm.ai/docs/proxy/prod). Was 1g and sat at 95.77%.
+          memory: 4g
+          cpus: "1.0"
 
   postgres:
     image: postgres:16-alpine
@@ -65,6 +67,7 @@ services:
         limits:
           # 57MiB idle, but shared_buffers scales with host RAM when uncapped
           memory: 512m
+          cpus: "1.0"
 
 networks:
   ai-net:

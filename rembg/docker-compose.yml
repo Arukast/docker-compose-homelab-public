@@ -57,6 +57,7 @@ services:
           # ample for one request at a time and leaves the 11GB LXC room for
           # open-webui (which sits at 3.4GB with the embedding model loaded).
           memory: 2g
+          cpus: "2.0"
 
 volumes:
   rembg-models:

@@ -59,7 +59,9 @@ services:
     deploy:
       resources:
         limits:
+          # Idle ~60MB; default shared_buffers (128MB) fits with headroom.
           memory: 512m
+          cpus: "1.0"
 
   server:
     image: ghcr.io/goauthentik/server:${AUTHENTIK_TAG}
@@ -129,6 +131,7 @@ services:
           # Django + gunicorn + the model embedding worker. Spikes well past
           # this during migrations; the limit is a backstop, not a budget.
           memory: 1g
+          cpus: "1.0"
 
   worker:
     image: ghcr.io/goauthentik/server:${AUTHENTIK_TAG}
@@ -173,6 +176,14 @@ services:
       - SETUID
       - SETGID
     networks: [auth-net]
+    deploy:
+      resources:
+        limits:
+          # Official install docs ask for a 2C/2GB host for the whole stack;
+          # the worker idles ~360MiB (authentik #17869). Server + worker +
+          # postgres total ~2.25g, matching that spec with headroom.
+          memory: 768m
+          cpus: "1.0"
 
 networks:
   auth-net:

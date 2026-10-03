@@ -37,6 +37,7 @@ services:
         limits:
           # was 256m; searxng rate-limits and caches in-process, 384m is safer
           memory: 384m
+          cpus: "1.0"
 
 networks:
   ai-net:

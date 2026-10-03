@@ -33,6 +33,13 @@ services:
       timeout: 5s
       retries: 3
       start_period: 40s
+    deploy:
+      resources:
+        limits:
+          # Official docs floor is 500MB (homarr.dev getting-started), but
+          # issues #3759/#6123 report 600MB-1GB observed on dashboards.
+          memory: 1g
+          cpus: "1.0"
 
 networks:
   dashboard-net:

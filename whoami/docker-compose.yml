@@ -7,6 +7,12 @@ services:
       - whoami-net
     ports:
       - "${HOST_IP:-127.0.0.1}:8080:80" # Listens on port 8080 on the host
+    deploy:
+      resources:
+        limits:
+          # No official sizing published; tiny Go echo server, safety cap only.
+          memory: 64m
+          cpus: "0.5"
 
 networks:
   whoami-net:

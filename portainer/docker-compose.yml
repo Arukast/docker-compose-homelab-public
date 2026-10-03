@@ -36,6 +36,13 @@ services:
       timeout: 5s
       retries: 3
       start_period: 5s
+    deploy:
+      resources:
+        limits:
+          # No official sizing published; same proxy as socket-proxy/ uses
+          # there. HAProxy footprint is ~20MiB, 128m is generous.
+          memory: 128m
+          cpus: "0.5"
 
   portainer:
     image: portainer/portainer-ce:2.45.1
@@ -61,6 +68,13 @@ services:
     depends_on:
       docker-socket-proxy:
         condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          # No official sizing published (requirements page covers ports and
+          # versions only); Go API + UI idles well under 256m.
+          memory: 256m
+          cpus: "1.0"
 
 networks:
   portainer_net:

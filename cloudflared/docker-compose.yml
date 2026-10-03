@@ -13,6 +13,14 @@ services:
       - cloudflared-net
     environment:
       - TUNNEL_TOKEN=${TUNNEL_TOKEN}
+    deploy:
+      resources:
+        limits:
+          # Official system requirements ask 4GB/4 CPU per dedicated host --
+          # that is port-count capacity sizing, not a per-container floor.
+          # One tunnel replica idles well under 1g.
+          memory: 1g
+          cpus: "1.0"
 
 networks:
   cloudflared-net:

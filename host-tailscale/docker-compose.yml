@@ -26,3 +26,10 @@ services:
       timeout: 10s
       retries: 3
       start_period: 15s
+    deploy:
+      resources:
+        limits:
+          # No official sizing published; idles in the tens of MB, with known
+          # memory-growth issues (tailscale #7571, #18774).
+          memory: 256m
+          cpus: "0.5"

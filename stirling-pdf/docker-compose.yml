@@ -60,9 +60,11 @@ services:
     deploy:
       resources:
         limits:
-          # Spring Boot + LibreOffice. Spikes past this under heavy OCR; the
-          # limit is a backstop, not a budget.
-          memory: 2g
+          # Spring Boot + LibreOffice. Official sizing docs recommend 4 GB RAM
+          # (docs.stirlingpdf.com performance-optimization); spikes further
+          # under heavy OCR, so the limit is a backstop, not a budget.
+          memory: 4g
+          cpus: "2.0"
 
 networks:
   stirling-net:

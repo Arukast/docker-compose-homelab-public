@@ -23,6 +23,13 @@ services:
       timeout: 5s
       retries: 3
       start_period: 20s
+    deploy:
+      resources:
+        limits:
+          # No official sizing published; nginx + Node admin UI idles small,
+          # with a ~25MB/day leak reported in NPM #4182 -- 512m absorbs it.
+          memory: 512m
+          cpus: "1.0"
 
 networks:
   npm-net:

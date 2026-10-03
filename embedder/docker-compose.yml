@@ -54,6 +54,7 @@ services:
           # pip install pulls torch-adjacent wheels; 1g is enough for the
           # download+extract and stops a bad day from eating the LXC.
           memory: 1g
+          cpus: "0.5"
 
   # Separate from open-webui on purpose: bge-m3 is ~2.3GB of weights, and
   # sentence-transformers would otherwise load it INSIDE the open-webui process,
@@ -134,6 +135,7 @@ services:
           # conclusion is that bge-m3 on CPU does not fit on an 11GB LXC -- go
           # back to open-webui's in-process embeddings rather than raise this.
           memory: 4g
+          cpus: "2.0"
 
 volumes:
   # Named, not a bind mount: the deployer user must not need write access to the

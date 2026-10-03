@@ -16,3 +16,9 @@ services:
       - /proc:/rootfs/proc:ro
       - /sys:/rootfs/sys:ro
       - /etc/os-release:/rootfs/etc/os-release:ro
+    deploy:
+      resources:
+        limits:
+          # No official sizing published; small psutil poller/web UI.
+          memory: 256m
+          cpus: "0.5"

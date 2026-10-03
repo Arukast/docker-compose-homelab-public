@@ -18,6 +18,13 @@ services:
       timeout: 30s
       retries: 3
       start_period: 60s
+    deploy:
+      resources:
+        limits:
+          # No official sizing published; ~102MiB idle on SQLite, 512m covers
+          # monitor spikes (uptime-kuma #5884).
+          memory: 512m
+          cpus: "1.0"
 
 networks:
   npm-net:
