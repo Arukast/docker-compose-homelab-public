@@ -36,7 +36,8 @@ services:
       # message costs a few hundred tokens instead of a pre-allocated 8192.
       # It is on ai-net, which has egress, so sentence-transformers fetches the
       # weights on first boot into ./open-webui-data/cache/embedding.
-      # Forces Open WebUI to override DB settings with environment variables
+      # true (default in Open WebUI) = saved DB settings override the env
+      # defaults below; false/empty = env values always win.
       - ENABLE_PERSISTENT_CONFIG=${ENABLE_PERSISTENT_CONFIG}
       # Empty string = in-process sentence-transformers. Valid engines are
       # '', ollama, openai, azure_openai -- the literal name
@@ -59,6 +60,7 @@ services:
       - OIDC_ISSUER=${OIDC_ISSUER}
       - OIDC_PROVIDER_NAME=${OIDC_PROVIDER_NAME}
       - OIDC_SCOPES=${OIDC_SCOPES}
+      - OAUTH_USERNAME_CLAIM=preferred_username
     healthcheck:
       test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/api/health')"]
       interval: 30s
