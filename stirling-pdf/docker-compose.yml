@@ -31,6 +31,13 @@ services:
     environment:
       - SECURITY_ENABLELOGIN=${SECURITY_ENABLELOGIN:-true}
       - SYSTEM_DEFAULTLOCALE=${SYSTEM_DEFAULTLOCALE:-en-US}
+      # OAUTH
+      - SYSTEM_BACKENDURL=${SYSTEM_BACKENDURL}
+      - SECURITY_OAUTH2_ENABLED=${SECURITY_OAUTH2_ENABLED}
+      - SECURITY_OAUTH2_ISSUER=${SECURITY_OAUTH2_ISSUER}
+      - SECURITY_OAUTH2_CLIENTID=${SECURITY_OAUTH2_CLIENTID}
+      - SECURITY_OAUTH2_CLIENTSECRET=${SECURITY_OAUTH2_CLIENTSECRET}
+      - SECURITY_OAUTH2_PROVIDER=${SECURITY_OAUTH2_PROVIDER}
     healthcheck:
       # The image has curl but no wget, and with login enabled "/" redirects to
       # the sign-in page. /api/v1/info/status is public and is what the image's
