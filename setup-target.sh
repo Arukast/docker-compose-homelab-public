@@ -89,23 +89,30 @@ chown -R "$TARGET_USER:$TARGET_USER" "$SSH_DIR"
 
 echo "==> 5. Setting up sparse checkout..."
 mkdir -p "$BASE_DIR"
+chown "$TARGET_USER:$TARGET_USER" "$BASE_DIR"
 
 # Configure safe directory for both root and deployer before git operations
 git config --global --add safe.directory "$BASE_DIR" || true
 su - "$TARGET_USER" -c "git config --global --add safe.directory '$BASE_DIR'" || true
 
+# Run git AS the deployer, never as root. The old flow cloned/pulled as root
+# and then ran `chown -R "$BASE_DIR"` to fix it, but that walked into
+# bind-mounted runtime data (e.g. uptime-kuma/uptime-kuma/data) and reset
+# container-owned files to the deployer UID. That broke uptime-kuma's
+# embedded MariaDB (uid 1000) on every setup run: Errcode 13, data not
+# writable. Runtime data must keep its container-assigned ownership.
 if [ ! -d "$BASE_DIR/.git" ]; then
-    git clone --filter=blob:none --sparse "$REPO_URL" "$BASE_DIR"
-    cd "$BASE_DIR"
-    git sparse-checkout set $SERVICE_NAMES
+    su - "$TARGET_USER" -c "git clone --filter=blob:none --sparse '$REPO_URL' '$BASE_DIR' && cd '$BASE_DIR' && git sparse-checkout set $SERVICE_NAMES"
 else
-    cd "$BASE_DIR"
-    git sparse-checkout set $SERVICE_NAMES
-    git pull origin main
+    su - "$TARGET_USER" -c "cd '$BASE_DIR' && git sparse-checkout set $SERVICE_NAMES && git pull origin main"
 fi
 
-echo "==> 6. Enforcing ownership and safe directory permissions..."
-chown -R "$TARGET_USER:$TARGET_USER" "$BASE_DIR"
+echo "==> 6. Verifying git metadata ownership..."
+# Repaired per-path, never `chown -R "$BASE_DIR"`: only .git may have been
+# left root-owned by older versions of this script.
+if [ "$(stat -c %U "$BASE_DIR/.git" 2>/dev/null)" = "root" ]; then
+    chown -R "$TARGET_USER:$TARGET_USER" "$BASE_DIR/.git"
+fi
 su - "$TARGET_USER" -c "git config --global --add safe.directory '$BASE_DIR'" || true
 
 echo "==> Setup complete for service: $SERVICE_NAMES"
