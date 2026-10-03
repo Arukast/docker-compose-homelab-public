@@ -38,9 +38,11 @@ services:
       # weights on first boot into ./open-webui-data/cache/embedding.
       # Forces Open WebUI to override DB settings with environment variables
       - ENABLE_PERSISTENT_CONFIG=${ENABLE_PERSISTENT_CONFIG}
-      - RAG_EMBEDDING_ENGINE=sentence-transformers
+      # Empty string = in-process sentence-transformers. Valid engines are
+      # '', ollama, openai, azure_openai -- the literal name
+      # "sentence-transformers" raises ValueError at startup in v0.11.4.
+      - RAG_EMBEDDING_ENGINE=
       - RAG_EMBEDDING_MODEL=${RAG_EMBEDDING_MODEL:-BAAI/bge-m3}
-      - RAG_EMBEDDING_ENGINE_MODEL_ID=${RAG_EMBEDDING_MODEL:-BAAI/bge-m3}
       - ENABLE_WEB_SEARCH=${ENABLE_WEB_SEARCH:-true}
       - WEB_SEARCH_ENGINE=${WEB_SEARCH_ENGINE:-searxng}
       - SEARXNG_QUERY_URL=${SEARXNG_QUERY_URL:-http://searxng:8080/search?q=<query>}
