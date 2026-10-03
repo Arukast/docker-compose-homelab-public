@@ -87,7 +87,19 @@ fi
 
 chown -R "$TARGET_USER:$TARGET_USER" "$SSH_DIR"
 
-echo "==> 5. Setting up sparse checkout..."
+echo "==> 5. Verifying git metadata ownership..."
+# Repaired per-path BEFORE any git operation, never `chown -R "$BASE_DIR"`:
+# only .git may have been left root-owned by older versions of this script,
+# and walking into bind-mounted runtime data (e.g.
+# uptime-kuma/uptime-kuma/data) would reset container-owned files to the
+# deployer UID, breaking uptime-kuma's embedded MariaDB (uid 1000) on every
+# setup run. find-based check: .git itself can be deployer-owned while
+# objects/ or refs/ underneath are still root-owned.
+if [ -d "$BASE_DIR/.git" ] && [ -n "$(find "$BASE_DIR/.git" ! -user "$TARGET_USER" -print -quit 2>/dev/null)" ]; then
+    chown -R "$TARGET_USER:$TARGET_USER" "$BASE_DIR/.git"
+fi
+
+echo "==> 6. Setting up sparse checkout..."
 mkdir -p "$BASE_DIR"
 chown "$TARGET_USER:$TARGET_USER" "$BASE_DIR"
 
@@ -106,13 +118,5 @@ if [ ! -d "$BASE_DIR/.git" ]; then
 else
     su - "$TARGET_USER" -c "cd '$BASE_DIR' && git sparse-checkout set $SERVICE_NAMES && git pull origin main"
 fi
-
-echo "==> 6. Verifying git metadata ownership..."
-# Repaired per-path, never `chown -R "$BASE_DIR"`: only .git may have been
-# left root-owned by older versions of this script.
-if [ "$(stat -c %U "$BASE_DIR/.git" 2>/dev/null)" = "root" ]; then
-    chown -R "$TARGET_USER:$TARGET_USER" "$BASE_DIR/.git"
-fi
-su - "$TARGET_USER" -c "git config --global --add safe.directory '$BASE_DIR'" || true
 
 echo "==> Setup complete for service: $SERVICE_NAMES"
