@@ -30,6 +30,9 @@ services:
       - FOWNER
       - SETUID
       - SETGID
+      # Ping monitors spawn `ping`, which opens a raw ICMP socket. Without
+      # NET_RAW every ping check fails with "spawn EPERM" (uptime-kuma#373).
+      - NET_RAW
     deploy:
       resources:
         limits:
