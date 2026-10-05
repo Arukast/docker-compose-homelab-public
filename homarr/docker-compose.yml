@@ -1,6 +1,6 @@
 services:
   homarr:
-    image: ghcr.io/homarr-labs/homarr:v2.1.1@sha256:e438916dec2ef99985a3a276f3499b09eca31bf35fc673f7451538016a336955
+    image: ghcr.io/homarr-labs/homarr:v2.2.0@sha256:1b4ea544e2678d88ea949aeb1eb39cb162154c9fcecf581ade0c47f4d2098814
     container_name: ${HOMARR_CONTAINER_NAME}
     restart: unless-stopped
     security_opt:
