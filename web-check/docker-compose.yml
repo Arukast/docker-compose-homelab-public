@@ -9,7 +9,7 @@ services:
   # Web-Check -- all-in-one OSINT website analyzer (DNS, Whois, SSL chain,
   # headers, tech stack, ports). Ships its own Chromium; stateless.
   web-check:
-    image: lissy93/web-check:2.3.0@sha256:6fb2b5a58e4fa77afb724a7e6e041f876c081e2f9340b7ba6520ac4d4fc2290a
+    image: lissy93/web-check:2.3.1@sha256:27b7f588de7582ba3a957a7f0a04620b6efbcb7f1327cae2e4e5bdce94957dbc
     container_name: ${WEBCHECK_CONTAINER_NAME:-web-check}
     restart: unless-stopped
     security_opt:
