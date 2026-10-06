@@ -20,6 +20,12 @@ services:
     networks:
       - anubis-net
       - npm-net
+    # Needed for Let's Encrypt DNS-01 (api.cloudflare.com lookups); same OCI
+    # resolver problem as crowdsec. Container names still resolve via
+    # Docker's embedded DNS.
+    dns:
+      - ${DNS_PRIMARY:-1.1.1.1}
+      - ${DNS_SECONDARY:-8.8.8.8}
     ports:
       # Public TLS edge: must listen on all interfaces, this is the only
       # place the internet may reach.

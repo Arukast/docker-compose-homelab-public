@@ -17,6 +17,14 @@ services:
       - COLLECTIONS=${CROWDSEC_COLLECTIONS:-crowdsecurity/linux crowdsecurity/sshd crowdsecurity/nginx-proxy-manager}
       # Registers the firewall bouncer with this key on startup (no cscli step).
       - BOUNCER_KEY_firewall=${CROWDSEC_BOUNCER_KEY}
+    # External lookups die without these: on OCI the VCN resolver
+    # (169.254.169.254) is unreachable from container networking, and the hub
+    # install fetches version.crowdsec.net at every start. Container names
+    # still resolve via Docker's embedded DNS. Point DNS_PRIMARY at your
+    # AdGuard (host Tailscale IP) to keep lookups local.
+    dns:
+      - ${DNS_PRIMARY:-1.1.1.1}
+      - ${DNS_SECONDARY:-8.8.8.8}
     volumes:
       - ./crowdsec/acquis.d:/etc/crowdsec/acquis.d
       - ./crowdsec/config:/etc/crowdsec
