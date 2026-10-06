@@ -17,6 +17,12 @@ dashboard/homarr
 openwebui/open-webui-data/*
 !openwebui/open-webui-data/functions/
 
+# Runtime state: crowdsec seeds its config, SQLite DB and hub datafiles here
+# on first boot. Never commit. crowdsec/crowdsec/acquis.d/ is source and IS
+# committed.
+crowdsec/crowdsec/config/
+crowdsec/crowdsec/data/
+
 # Get ignored for now because the workflows is not supported
 glances/glances/glances.conf
 .commandcode

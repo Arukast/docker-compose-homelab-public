@@ -1,0 +1,47 @@
+# CrowdSec firewall remediation component -- managed nftables mode.
+# The image renders this file through envsubst at startup: ${API_URL} and
+# ${API_KEY} come from docker-compose.yml, no other ${...} literal may appear
+# here (envsubst blanks undefined variables).
+mode: nftables
+update_frequency: 10s
+log_mode: stdout
+log_level: info
+api_url: ${API_URL}
+api_key: ${API_KEY}
+insecure_skip_verify: false
+disable_ipv6: false
+deny_action: DROP
+deny_log: false
+supported_decisions_types:
+  - ban
+blacklists_ipv4: crowdsec-blacklists
+blacklists_ipv6: crowdsec6-blacklists
+
+nftables:
+  ipv4:
+    enabled: true
+    set-only: false
+    table: crowdsec
+    chain: crowdsec-chain
+    priority: -10
+  ipv6:
+    enabled: true
+    set-only: false
+    table: crowdsec6
+    chain: crowdsec6-chain
+    priority: -10
+
+# input: host services (SSH, DNS). forward: Docker-published ports -- docker
+# DNATs in PREROUTING, so published traffic crosses the forward hook and never
+# hits input (this is the nftables equivalent of the DOCKER-USER chain).
+nftables_hooks:
+  - input
+  - forward
+
+pf:
+  anchor_name: ""
+
+prometheus:
+  enabled: false
+  listen_addr: 127.0.0.1
+  listen_port: 60601

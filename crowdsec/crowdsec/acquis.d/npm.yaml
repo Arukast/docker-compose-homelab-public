@@ -1,0 +1,6 @@
+# Nginx Proxy Manager proxy-host access/error logs
+# (crowdsecurity/nginx-proxy-manager parser + base-http-scenarios).
+filenames:
+  - /var/log/npm/*.log
+labels:
+  type: nginx-proxy-manager

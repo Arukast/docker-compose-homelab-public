@@ -1,0 +1,9 @@
+# Host auth/syslog for the crowdsecurity/linux + sshd scenarios. On hosts
+# that run only journald there is no /var/log/auth.log -- drop the missing
+# paths here, or switch the image to crowdsecurity/crowdsec:*-debian with a
+# journalctl DSN.
+filenames:
+  - /var/log/auth.log
+  - /var/log/syslog
+labels:
+  type: syslog

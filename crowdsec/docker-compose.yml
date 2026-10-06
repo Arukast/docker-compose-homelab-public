@@ -1,0 +1,92 @@
+x-logging: &default-logging
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+services:
+  crowdsec:
+    image: crowdsecurity/crowdsec:v1.8.1@sha256:0f2523fa61ef507f15d953045cface490cc880670c62f2755ced17524107f71a
+    container_name: ${CROWDSEC_CONTAINER_NAME:-crowdsec}
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    <<: *default-logging
+    environment:
+      - COLLECTIONS=${CROWDSEC_COLLECTIONS:-crowdsecurity/linux crowdsecurity/sshd crowdsecurity/nginx-proxy-manager}
+      # Registers the firewall bouncer with this key on startup (no cscli step).
+      - BOUNCER_KEY_firewall=${CROWDSEC_BOUNCER_KEY}
+    volumes:
+      - ./crowdsec/acquis.d:/etc/crowdsec/acquis.d
+      - ./crowdsec/config:/etc/crowdsec
+      - ./crowdsec/data:/var/lib/crowdsec/data
+      # NPM writes its proxy-host logs here (see npm/docker-compose.yml).
+      - ../npm/npm/data/logs:/var/log/npm:ro
+      - /var/log:/var/log:ro
+      - /etc/localtime:/etc/localtime:ro
+    networks:
+      - crowdsec-net
+    ports:
+      - "${HOST_IP:-127.0.0.1}:8080:8080"
+    healthcheck:
+      test: ["CMD", "cscli", "lapi", "status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    cap_drop:
+      - ALL
+    cap_add:
+      # Reads root-owned host logs (auth.log/syslog default to 640 root:adm).
+      - DAC_OVERRIDE
+    deploy:
+      resources:
+        limits:
+          # No official sizing published; engine + SQLite + GeoIP datafiles
+          # idle around 200-300MiB, 512m absorbs hub-update spikes.
+          memory: 512m
+          cpus: "1.0"
+
+  crowdsec-firewall-bouncer:
+    # Community packaging of upstream crowdsecurity/cs-firewall-bouncer
+    # (upstream ships no Docker image).
+    image: ghcr.io/shgew/cs-firewall-bouncer-docker:v0.0.38@sha256:ece5da4dbc65e84784e1d21043667ddee34c0fc8e74bdb95d2e378021dc97f0e
+    container_name: ${CROWDSEC_FIREWALL_BOUNCER_CONTAINER_NAME:-crowdsec-firewall-bouncer}
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    <<: *default-logging
+    # Applies bans to the host netfilter, so it must share the host network.
+    network_mode: host
+    environment:
+      - API_URL=${CROWDSEC_LAPI_URL:-http://${HOST_IP:-127.0.0.1}:8080}
+      - API_KEY=${CROWDSEC_BOUNCER_KEY}
+    volumes:
+      - ./crowdsec/crowdsec-firewall-bouncer.yaml:/config/crowdsec-firewall-bouncer.yaml:ro
+      - /etc/localtime:/etc/localtime:ro
+    depends_on:
+      crowdsec:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f crowdsec-firewall-bouncer >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    cap_drop:
+      - ALL
+    cap_add:
+      # Creates/updates nftables sets and drop rules in the host netfilter.
+      - NET_ADMIN
+      - NET_RAW
+    deploy:
+      resources:
+        limits:
+          # Tiny Go binary maintaining two nft sets; safety cap only.
+          memory: 128m
+          cpus: "0.5"
+
+networks:
+  crowdsec-net:
+    driver: bridge

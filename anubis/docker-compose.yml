@@ -1,0 +1,52 @@
+x-logging: &default-logging
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+services:
+  anubis:
+    image: ghcr.io/techarohq/anubis:v1.27.0@sha256:8828275668b7bc675679f100970f9714f731388fbbf66ae94de8aca952e3fc4a
+    container_name: ${ANUBIS_CONTAINER_NAME:-anubis}
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    <<: *default-logging
+    environment:
+      # Upstream requires one Anubis instance per protected service.
+      - TARGET=${ANUBIS_TARGET}
+      # Signs the challenge JWTs so pass cookies survive a restart.
+      - ED25519_PRIVATE_KEY_HEX=${ANUBIS_ED25519_PRIVATE_KEY_HEX}
+      - SERVE_ROBOTS_TXT=${ANUBIS_SERVE_ROBOTS_TXT:-true}
+      - DIFFICULTY=${ANUBIS_DIFFICULTY:-4}
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+    networks:
+      - anubis-net
+      - npm-net
+    healthcheck:
+      test: ["CMD", "anubis", "--healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    # Image runs as uid 1000 and only binds the unprivileged :8923; nothing
+    # in this container needs a capability.
+    cap_drop:
+      - ALL
+    deploy:
+      resources:
+        limits:
+          # Upstream sizing note: "128Mi of ram may be sufficient for a large
+          # number of concurrent clients". 256m covers challenge-page spikes.
+          memory: 256m
+          cpus: "0.5"
+
+networks:
+  # Dedicated bridge; join the guarded service's network here too if TARGET
+  # lives outside anubis-net/npm-net.
+  anubis-net:
+    driver: bridge
+  npm-net:
+    external: true
