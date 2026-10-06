@@ -1,0 +1,58 @@
+# Global bot policy for the Anubis gateway (mounted read-only, referenced by
+# POLICY_FNAME). Rules match top to bottom and the FIRST match wins, so the
+# bypasses come first and the upstream default rule set is imported last.
+# Docs: https://anubis.techaro.lol/docs/admin/policies/
+
+bots:
+  # --- Bypasses for non-browser clients -------------------------------
+  # ACME/web plumbing must never be challenged.
+  - name: well-known
+    path_regex: ^/.well-known/.*$
+    action: ALLOW
+  - name: favicon
+    path_regex: ^/favicon.ico$
+    action: ALLOW
+  - name: robots-txt
+    path_regex: ^/robots.txt$
+    action: ALLOW
+
+  # Tailscale clients skip the challenge entirely (source-IP match).
+  - name: tailscale
+    action: ALLOW
+    remote_addresses:
+      - 100.64.0.0/10
+
+  # API/mobile/sync clients that authenticate (tokens, app passwords).
+  # User-Agent and header values are spoofable on their own -- add a
+  # path_regex to the rule where a service needs it tighter.
+  - name: authenticated-api
+    action: ALLOW
+    headers_regex:
+      Authorization: ^(Bearer|Basic)\s+\S+
+
+  # Webhook endpoints have no browser to run the challenge.
+  - name: webhook-paths
+    action: ALLOW
+    path_regex: ^/(webhook|webhooks)/.*
+
+  # --- Per-service bypass templates -----------------------------------
+  # Uncomment/adjust when adding a service whose native clients cannot
+  # solve a PoW challenge (apps, sync engines, appliances).
+  #- name: allow-home-assistant-app
+  #  action: ALLOW
+  #  user_agent_regex: ^HomeAssistant/.*
+  #- name: allow-hass-api-paths
+  #  action: ALLOW
+  #  path_regex: ^/api/(websocket|services|states|event_stream).*
+  #- name: allow-nextcloud-clients
+  #  action: ALLOW
+  #  user_agent_regex: ^Nextcloud.*
+  #- name: allow-nextcloud-sync-paths
+  #  action: ALLOW
+  #  path_regex: ^/(remote\.php|status\.php|ocs|cron\.php).*
+
+  # --- Everything else: the upstream default rule set -----------------
+  # Pathological-bot denies, aggressive AI-scraper blocks, search-engine
+  # allows and the Mozilla CHALLENGE catch-all. Importing keeps these
+  # current as upstream adapts to new threats.
+  - import: (data)/meta/default-config.yaml

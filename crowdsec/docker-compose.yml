@@ -21,8 +21,10 @@ services:
       - ./crowdsec/acquis.d:/etc/crowdsec/acquis.d
       - ./crowdsec/config:/etc/crowdsec
       - ./crowdsec/data:/var/lib/crowdsec/data
-      # NPM writes its proxy-host logs here (see npm/docker-compose.yml).
-      - ../npm/npm/data/logs:/var/log/npm:ro
+      # The TLS edge (npm-front) writes its proxy-host logs here. Only these
+      # logs carry real client IPs -- the internal router sees the gateway's
+      # IP -- so bans stay meaningful.
+      - ../npm-front/npm-front/data/logs:/var/log/npm:ro
       - /var/log:/var/log:ro
       - /etc/localtime:/etc/localtime:ro
     networks:

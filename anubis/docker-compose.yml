@@ -14,13 +14,20 @@ services:
       - no-new-privileges:true
     <<: *default-logging
     environment:
-      # Upstream requires one Anubis instance per protected service.
+      # The router behind the gateway (e.g. NPM's :80 listener). Anubis is
+      # Host-agnostic: one instance filters every website the router serves.
       - TARGET=${ANUBIS_TARGET}
+      # Bot policy: custom bypasses first, upstream default rules imported
+      # at the end (see anubis/policy.yaml).
+      - POLICY_FNAME=/data/cfg/botPolicy.yaml
       # Signs the challenge JWTs so pass cookies survive a restart.
       - ED25519_PRIVATE_KEY_HEX=${ANUBIS_ED25519_PRIVATE_KEY_HEX}
+      # One challenge-pass cookie for every subdomain behind this gateway.
+      - COOKIE_DOMAIN=${ANUBIS_COOKIE_DOMAIN}
       - SERVE_ROBOTS_TXT=${ANUBIS_SERVE_ROBOTS_TXT:-true}
       - DIFFICULTY=${ANUBIS_DIFFICULTY:-4}
     volumes:
+      - ./anubis/policy.yaml:/data/cfg/botPolicy.yaml:ro
       - /etc/localtime:/etc/localtime:ro
     networks:
       - anubis-net
@@ -44,9 +51,9 @@ services:
           cpus: "0.5"
 
 networks:
-  # Dedicated bridge; join the guarded service's network here too if TARGET
-  # lives outside anubis-net/npm-net.
+  # Shared with npm-front (TLS edge forwards to anubis:8923).
+  # Create once per host: docker network create anubis-net
   anubis-net:
-    driver: bridge
+    external: true
   npm-net:
     external: true
