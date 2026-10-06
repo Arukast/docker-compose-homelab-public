@@ -35,6 +35,12 @@ bots:
     action: ALLOW
     path_regex: ^/(webhook|webhooks)/.*
 
+  # authentik outpost paths carry the forward-auth login redirects; the
+  # challenge must not interrupt that flow (authentik is the gate there).
+  - name: authentik-outpost
+    action: ALLOW
+    path_regex: ^/outpost\.goauthentik\.io/.*
+
   # --- Per-service bypass templates -----------------------------------
   # Uncomment/adjust when adding a service whose native clients cannot
   # solve a PoW challenge (apps, sync engines, appliances).

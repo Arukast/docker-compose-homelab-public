@@ -24,6 +24,9 @@ services:
       - ED25519_PRIVATE_KEY_HEX=${ANUBIS_ED25519_PRIVATE_KEY_HEX}
       # One challenge-pass cookie for every subdomain behind this gateway.
       - COOKIE_DOMAIN=${ANUBIS_COOKIE_DOMAIN}
+      # Only allow post-challenge redirects back into this domain (kills the
+      # "Redirect domain not allowed" open-redirect risk from the startup log).
+      - REDIRECT_DOMAINS=${ANUBIS_COOKIE_DOMAIN},*.${ANUBIS_COOKIE_DOMAIN}
       - SERVE_ROBOTS_TXT=${ANUBIS_SERVE_ROBOTS_TXT:-true}
       - DIFFICULTY=${ANUBIS_DIFFICULTY:-4}
     volumes:
