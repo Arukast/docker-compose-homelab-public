@@ -17,6 +17,10 @@ services:
       - COLLECTIONS=${CROWDSEC_COLLECTIONS:-crowdsecurity/linux crowdsecurity/sshd crowdsecurity/nginx-proxy-manager}
       # Registers the firewall bouncer with this key on startup (no cscli step).
       - BOUNCER_KEY_firewall=${CROWDSEC_BOUNCER_KEY}
+      # Optional: enroll this instance in the CrowdSec web Console
+      # (app.crowdsec.net). Empty = skipped.
+      - ENROLL_KEY=${CROWDSEC_ENROLL_KEY:-}
+      - ENROLL_INSTANCE_NAME=${CROWDSEC_ENROLL_INSTANCE_NAME:-oci-core}
     # External lookups die without these: on OCI the VCN resolver
     # (169.254.169.254) is unreachable from container networking, and the hub
     # install fetches version.crowdsec.net at every start. Container names

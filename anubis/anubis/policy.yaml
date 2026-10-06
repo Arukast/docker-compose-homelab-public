@@ -56,6 +56,9 @@ bots:
   #- name: allow-nextcloud-sync-paths
   #  action: ALLOW
   #  path_regex: ^/(remote\.php|status\.php|ocs|cron\.php).*
+  #- name: allow-doh-endpoint
+  #  action: ALLOW
+  #  path_regex: ^/dns-query(/|$).*
 
   # --- Everything else: the upstream default rule set -----------------
   # Pathological-bot denies, aggressive AI-scraper blocks, search-engine
