@@ -25,7 +25,10 @@ services:
       # logs carry real client IPs -- the internal router sees the gateway's
       # IP -- so bans stay meaningful.
       - ../npm-front/npm-front/data/logs:/var/log/npm:ro
-      - /var/log:/var/log:ro
+      # Host logs land under /var/log/host, NOT /var/log: mounting the host's
+      # /var/log read-only at /var/log blocks Docker from creating the nested
+      # /var/log/npm mountpoint (EROFS).
+      - /var/log:/var/log/host:ro
       - /etc/localtime:/etc/localtime:ro
     networks:
       - crowdsec-net
