@@ -41,6 +41,10 @@ bots:
     action: ALLOW
     path_regex: ^/outpost\.goauthentik\.io/.*
 
+  - name: allow-livewire-updates
+    action: ALLOW
+    expression: path.startsWith('/livewire/')
+
   # --- Per-service bypass templates -----------------------------------
   # Uncomment/adjust when adding a service whose native clients cannot
   # solve a PoW challenge (apps, sync engines, appliances).
