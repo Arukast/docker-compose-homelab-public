@@ -1,6 +1,6 @@
 services:
   glances:
-    image: nicolargo/glances:4.5.7-full@sha256:af1b6ccd3c33f7ac821e30b7dd58946542ce3e252b225dc3d678a1ca48f1007b
+    image: nicolargo/glances:4.5.8-full@sha256:63823bf68687b42afab3bced830d1f157447c0204476cb7a62cb1e5e65dc292c
     container_name: glances
     restart: unless-stopped
     security_opt:
