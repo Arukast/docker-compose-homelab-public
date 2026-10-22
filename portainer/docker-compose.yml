@@ -49,7 +49,7 @@ services:
           cpus: "0.5"
 
   portainer:
-    image: portainer/portainer-ce:2.45.1@sha256:4d616db18cfeb5dd41a69c0958bc825c84483ea9cde1106eb82a5d26f3bd8b0e
+    image: portainer/portainer-ce:2.45.3@sha256:3609c307943bca8e5c492f69ddd6965df177208b50678a4cff28391c8dd4e96e
     container_name: portainer-server
     restart: unless-stopped
     command: -H tcp://docker-socket-proxy:2375
