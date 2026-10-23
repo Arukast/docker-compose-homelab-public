@@ -19,7 +19,7 @@ services:
   # Swap to `isnet-general-use` for hair/fur edges; u2net is fine for products
   # and hard-edged subjects.
   rembg:
-    image: danielgatis/rembg:2.0.85@sha256:98e72b790093dec3b21967e22c8eb75a0a67d458fdba7ef5fcc1900cad76396b
+    image: danielgatis/rembg:2.0.86@sha256:8b7936a9db723b7cfffe2c2d514d6cc17b7e43fca677bdaeed65e7f788aeab68
     container_name: ${REMBG_CONTAINER_NAME:-rembg}
     restart: unless-stopped
     security_opt:
