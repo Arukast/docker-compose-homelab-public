@@ -13,7 +13,7 @@ services:
   # that password immediately after first login, or set
   # SECURITY_ENABLELOGIN=false for a no-auth instance (LAN-only).
   stirling-pdf:
-    image: docker.stirlingpdf.com/stirlingtools/stirling-pdf:3.2.1@sha256:f95b691c3df463373258e21a578b404f1eb4c7660e8170a40e3e03c9c8f208a4
+    image: docker.stirlingpdf.com/stirlingtools/stirling-pdf:3.2.2@sha256:c6872dd056b0046a14c5de1e9970283e7f1e1ff685bb08090c6b37a231127d31
     container_name: ${STIRLING_CONTAINER_NAME:-stirling-pdf}
     restart: unless-stopped
     security_opt:
