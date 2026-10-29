@@ -19,8 +19,10 @@ setup-target.sh                one-time host provisioning (see below)
 .github/workflows/deploy.yml   CI: deploy changed directories, mirror to public repo
 ```
 
-`npm` is the internal reverse-proxy router; `npm-front` is the public TLS edge (only on
-the OCI edge host). They are different services, not duplicates.
+`npm` is the internal reverse-proxy router (LAN and cloudflared entry). `npm-front` is the
+public-IP TLS edge that fronts `anubis`. Both are nginx-proxy-manager and both run on the
+same edge host, where `npm-front` owns host 80/443 and `npm` moves to
+`NPM_HTTP_PORT`/`NPM_HTTPS_PORT`. They are different services, not duplicates.
 
 ## Deploy pipeline (this drives most of the repo's constraints)
 
@@ -115,8 +117,18 @@ Rules that are enforced by convention here, not by tooling:
 | `shared-ai-backend-net` | external, created `--internal` | `litellm-proxy`, `omniroute/redis`, `open-webui`, `presidio-*`, `embedder/text-embeddings-inference` |
 | `socket-proxy-net` | external | `socket-proxy` |
 
-Traffic flow: `cloudflared`/LAN → `npm` (router, `:80`) → services. On the edge host,
-`cloudflared` → `npm-front` (public TLS) → `anubis:8923` → `npm:80` → services.
+Ingress has two paths, and that is why there are two routers:
+
+- **Tunnel path:** `cloudflared` → `npm:80` → service. Cloudflare is the only entry point,
+  so these services need no Anubis challenge.
+- **Public-IP path (edge host only):** internet → `npm-front` 80/443 (TLS) →
+  `anubis:8923` (bot PoW) → `npm:80` → service. Anubis exists because nothing else protects
+  this path; it is Host-agnostic, so one instance covers every site the router serves.
+
+Both nginx-proxy-manager instances run on that host; `npm-front` owns 80/443 there, so
+`npm`'s host ports become `NPM_HTTP_PORT`/`NPM_HTTPS_PORT` and `anubis` reaches it as
+`npm:80` over `npm-net`.
+
 AI traffic: `open-webui`/`hermes` → `litellm-proxy:4000` → `omniroute:20128` → upstream,
 with Presidio guardrails on `shared-ai-backend-net`.
 

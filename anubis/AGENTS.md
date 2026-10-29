@@ -1,13 +1,16 @@
 # anubis/
 
-Proof-of-work bot gateway. One instance sits in front of the internal router and covers
-every website it serves — Anubis is Host-agnostic, so there is nothing per-site here.
+Proof-of-work bot gateway. One instance covers every website served over the host's
+**public IP** — Anubis is Host-agnostic, so there is nothing per-site here.
 
 ```
 anubis/policy.yaml    bot policy, mounted read-only at /data/cfg/botPolicy.yaml
 ```
 
-Chain: `cloudflared` → `npm-front` (TLS edge) → `anubis:8923` → `npm:80` → service.
+Chain (public-IP path): internet → `npm-front` (TLS edge) → `anubis:8923` → `npm:80` →
+service. Services published through the **cloudflared tunnel** reach `npm` directly and
+never pass through Anubis — Cloudflare is their protection, which is why the bypass list
+below only has to cover public-IP hostnames.
 
 ## Policy file
 
