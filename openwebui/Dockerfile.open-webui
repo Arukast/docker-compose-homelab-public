@@ -2,6 +2,6 @@
 # sentence-transformers <=5.5.1 that triggers on local model load even
 # with trust_remote_code=False. Upgrading is required regardless of
 # which embedding model you use.
-FROM ghcr.io/open-webui/open-webui:v0.12.4@sha256:a5b9e403d19154796850679c8c5d1295301cee954be8b84ddd62af92426558f7
+FROM ghcr.io/open-webui/open-webui:v0.12.5@sha256:03443b8de6b617da9d900edd09b4bf1cb0ddbfdcba6afb42c548336a0b821ded
 
 RUN pip install --no-cache-dir --upgrade "sentence-transformers>5.5.1"
