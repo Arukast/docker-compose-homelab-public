@@ -58,10 +58,24 @@ fi
 
 cd "$TARGET_DIR"
 git pull origin main
+
+# Reclaim BEFORE pulling. Renovate bumps tag AND digest (v1.106.5 -> v1.107.0),
+# so the superseded image keeps a real tag and is never "dangling": plain
+# `docker image prune -f` skips it and every version bump permanently adds a
+# full image set (litellm/presidio/open-webui are 1-3GB each). `-a` removes
+# anything no container references; the 24h filter keeps a rollback window and
+# avoids reaping an image that was pulled but not yet started. Doing it here
+# also stops a large pull from hitting ENOSPC mid-transfer on the 11GB AI LXC.
+docker image prune -a -f --filter "until=24h"
+
 docker compose pull || true
 docker compose up -d --build --remove-orphans
 
-docker image prune -f
+# Reap the version this deploy just took out of service, then bound the
+# BuildKit cache. `--build` above runs on openwebui and on any compose file
+# with a build context, so without this the newest cache set is retained
+# forever.
+docker image prune -a -f --filter "until=24h"
 docker builder prune -f --filter "until=24h"
 EOF
 

@@ -1,0 +1,7 @@
+# The build context is this directory, and open-webui-data/ holds multi-GB
+# runtime state (HF model cache for bge-m3, uploads, vector_db, webui.db).
+# Nothing in Dockerfile.open-webui copies it, but sending it as context on
+# every `compose up --build` is pure I/O and a real ENOSPC risk on the small
+# AI host. functions/ is source, yet it is bind-mounted by the app, not baked
+# into the image, so the whole directory stays out of the build.
+open-webui-data/
