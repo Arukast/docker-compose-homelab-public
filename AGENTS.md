@@ -110,7 +110,7 @@ Rules that are enforced by convention here, not by tooling:
 
 | Network | Kind | Members |
 | --- | --- | --- |
-| `npm-net` | external | `npm`, `cloudflared`, `uptime-kuma`, `anubis`, `npm-front`, `authentik` |
+| `npm-net` | external | `npm`, `cloudflared`, `uptime-kuma`, `anubis`, `npm-front`, `authentik`, `keycloak` |
 | `cloudflared-net` | external | `cloudflared`, `npm` |
 | `anubis-net` | external | `anubis`, `npm-front` |
 | `ai-net` | external (has egress) | `omniroute`, `hermes`, `litellm-proxy`, `open-webui`, `searxng`, `rembg`, `embedder/model-fetch` |

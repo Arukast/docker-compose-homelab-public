@@ -1,0 +1,174 @@
+# Keycloak -- identity provider (OIDC / SAML / LDAP).
+#
+# Two containers: `keycloak` and its own `postgresql`, on a private bridge.
+#
+# Independent of authentik/, which fills the same role on this fleet. Nothing
+# is shared: separate database, separate network, separate container names.
+# Running both is fine; pointing the same client at both is not.
+#
+# No proxy service: keycloak serves the admin console, /realms/<realm>/... and
+# the account console from one process on :8080. NPM terminates TLS and points
+# at keycloak:8080 over npm-net, so HTTP stays on in-container (KC_HTTP_ENABLED)
+# and forwarded headers are trusted (KC_PROXY_HEADERS).
+#
+# No bind-mounted data dir, on purpose. Realms, clients, users and signing keys
+# live in postgres. Keycloak's only on-disk writes are its build output and
+# transaction logs under /opt/keycloak/data, which are regenerated on every
+# start -- mounting a host dir there breaks exactly those writes, because the
+# image runs as uid 1000 and Docker creates bind sources as root.
+
+x-logging: &default-logging
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+services:
+  postgresql:
+    image: docker.io/library/postgres:18-alpine@sha256:10a5c69a83035ab5239f5620d708520e8b28f5aa1f2b20143e6024532edadfb5
+    container_name: ${KEYCLOAK_CONTAINER_NAME:-keycloak}-postgres
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    <<: *default-logging
+    environment:
+      - POSTGRES_DB=${PG_DB:-keycloak}
+      - POSTGRES_PASSWORD=${PG_PASS:?database password required}
+      - POSTGRES_USER=${PG_USER:-keycloak}
+    volumes:
+      # postgres:18 keeps PGDATA under /var/lib/postgresql/18/docker and
+      # declares /var/lib/postgresql as the volume, so this is the parent that
+      # must persist -- mounting .../data instead stores nothing.
+      - ./postgresql:/var/lib/postgresql
+    healthcheck:
+      # $$ escapes the $ so compose hands it to the container, where it reads
+      # the POSTGRES_* vars set above. A bare $ gets interpolated by compose
+      # from .env and expands to empty when the name is not mirrored there.
+      test: ["CMD-SHELL", "pg_isready -d $${POSTGRES_DB} -U $${POSTGRES_USER}"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    cap_drop:
+      - ALL
+    cap_add:
+      # The image starts as root, chowns/chmods PGDATA and /var/run/postgresql
+      # (both owned by uid 70 once initdb has run), then gosu's down to postgres.
+      # Without FOWNER those chmod calls fail with EPERM, and without
+      # DAC_OVERRIDE the entrypoint's `find "$PGDATA" -exec chown` gets EACCES on
+      # the mode-700 data dir. That find has no `|| :` guard and runs under
+      # `set -e`, so it aborts the entrypoint and the container restart-loops.
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETUID
+      - SETGID
+    networks: [keycloak-net]
+    deploy:
+      resources:
+        limits:
+          # Idle ~60MB; default shared_buffers (128MB) fits with headroom.
+          memory: 512m
+          cpus: "1.0"
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.8.1@sha256:a78d6b79572168cb25886b80a8b5b8d4ed4390743e3eecb810538683e209dd6b
+    container_name: ${KEYCLOAK_CONTAINER_NAME:-keycloak}
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    <<: *default-logging
+    # `start`, not `start-dev` (dev mode drops the checks that matter) and not
+    # `start --optimized`: health-enabled is a *build-time* option, and this
+    # image ships no prebuilt configuration, so the build has to run at boot
+    # for the health endpoints to exist. That costs ~20-40s per start, which
+    # start_period below covers. If you ever switch to `--optimized`, bake the
+    # build into an image here (see openwebui/Dockerfile.open-webui for the
+    # pattern) or the healthcheck goes dark.
+    command: ["start"]
+    environment:
+      - KC_DB=postgres
+      - KC_DB_URL=jdbc:postgresql://postgresql:5432/${PG_DB:-keycloak}
+      - KC_DB_USERNAME=${PG_USER:-keycloak}
+      - KC_DB_PASSWORD=${PG_PASS:?database password required}
+      # Full public URL, scheme included. Keycloak stamps this into the OIDC
+      # issuer claim, so it must match what clients see or every token fails
+      # validation. Changing it invalidates issued tokens.
+      - KC_HOSTNAME=${KEYCLOAK_HOSTNAME:?public URL required}
+      # NPM is the TLS terminator, so the container speaks plain HTTP and must
+      # believe X-Forwarded-*. `xforwarded` is the exact mode NPM produces;
+      # `forwarded` is for proxies that send the RFC 7239 header instead.
+      - KC_HTTP_ENABLED=true
+      - KC_PROXY_HEADERS=xforwarded
+      # Opens the management interface, which is what puts /health on :9000.
+      # Build-time option -- see the command note above.
+      - KC_HEALTH_ENABLED=true
+      # Only used when the master realm does not exist yet, i.e. against an
+      # empty database. Later starts ignore both values, so changing the
+      # password in the UI does not fight this env var -- but deleting this
+      # block means a rebuilt database comes up with no admin at all. Keep the
+      # value in the password manager.
+      - KC_BOOTSTRAP_ADMIN_USERNAME=${KEYCLOAK_BOOTSTRAP_ADMIN_USERNAME:-admin}
+      - KC_BOOTSTRAP_ADMIN_PASSWORD=${KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD:?bootstrap admin password required}
+    volumes:
+      # Custom provider JARs and themes. Read-only: Keycloak consumes them
+      # during the start-time build and never writes back, and Docker creates
+      # missing bind sources as root while the container is uid 1000 -- so
+      # anything writable here would be an EACCES waiting to happen.
+      - ./providers:/opt/keycloak/providers:ro
+      - ./themes:/opt/keycloak/themes:ro
+      # Display zone only. Keycloak stores events as UTC epoch millis, so this
+      # changes log readability and nothing about correctness.
+      - /etc/localtime:/etc/localtime:ro
+    ports:
+      # Loopback only: NPM reaches keycloak:8080 over npm-net, so this bind is
+      # for debugging on the host. 8080 is also used by whoami/, crowdsec/ and
+      # openwebui/, which only collides if those land on the same host.
+      - "${HOST_IP:-127.0.0.1}:8080:8080"
+    depends_on:
+      postgresql:
+        condition: service_healthy
+    healthcheck:
+      # The image ships no HTTP client at all -- ubi9-micro has bash, java and
+      # keytool and nothing else -- so the upstream-documented bash /dev/tcp
+      # redirect is the only in-container probe. CMD-SHELL runs /bin/sh, which
+      # is bash on this base image, so /dev/tcp and the `0<>` group redirect
+      # both work. The HEAD response is read off the same fd the request was
+      # written to, and grep -q makes the exit code the verdict.
+      #
+      # Port 9000, not 8080: health endpoints move to the management interface
+      # as soon as KC_HEALTH_ENABLED is on. Probing 8080 gets a 404/redirect
+      # and pins the container unhealthy while it serves fine.
+      test: ["CMD-SHELL", "{ printf 'HEAD /health/ready HTTP/1.0\\r\\n\\r\\n' >&0; grep -qE '^HTTP/1\\.[01] 200'; } 0<>/dev/tcp/localhost/9000"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      # Cold start = quarkus build + schema migration on an empty database.
+      # /health/ready returns 503 until migrations finish, which is the point
+      # (it is a real readiness gate, not a liveness ping), so give it room.
+      start_period: 180s
+    # Image runs as uid 1000 on unprivileged :8080 and writes only inside
+    # /opt/keycloak, which the image already owns. No capability is needed.
+    cap_drop:
+      - ALL
+    networks: [keycloak-net, npm-net]
+    deploy:
+      resources:
+        limits:
+          # Upstream's production baseline is 2 vCPU / 2GB. The JVM sizes its
+          # heap as a percentage of the limit (~70%), so 1g leaves ~700MB of
+          # heap -- ample for a homelab realm, and this is a backstop rather
+          # than a budget. Raise both together if the realm gets real traffic.
+          memory: 1g
+          cpus: "2.0"
+
+networks:
+  # Private to this stack: postgres must not be reachable from NPM or from any
+  # other project on the host.
+  keycloak-net:
+    driver: bridge
+  # External so NPM can add a Proxy Host pointing at keycloak:8080.
+  # Create it first: docker network create npm-net
+  npm-net:
+    external: true
