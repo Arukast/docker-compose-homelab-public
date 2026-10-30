@@ -81,7 +81,31 @@ EOF
 
 chmod +x "$DEPLOY_SCRIPT"
 
-echo "==> 4. Setting up restricted SSH key authorization for '$TARGET_USER'..."
+echo "==> 4. Installing logrotate for NPM access logs..."
+# nginx-proxy-manager writes one access log per proxy host into /data/logs.
+# The compose json-file cap only bounds stdout, so those files are unbounded
+# and scale with request volume -- on the public TLS edge (npm-front) they are
+# the host's largest consumer and nothing in the image rotates them.
+# `copytruncate` avoids signalling nginx workers the host does not own, and
+# `missingok` makes this a no-op on hosts without either stack. Deliberately
+# size- as well as time-based: cron.daily runs logrotate, so maxsize caps a
+# busy edge at 200MB per file instead of waiting for the weekly pass.
+cat > /etc/logrotate.d/npm-stacks <<LOGROTATE
+$BASE_DIR/npm/npm/data/logs/*.log
+$BASE_DIR/npm-front/npm-front/data/logs/*.log
+{
+    weekly
+    rotate 4
+    maxsize 200M
+    missingok
+    notifempty
+    compress
+    copytruncate
+}
+LOGROTATE
+chmod 644 /etc/logrotate.d/npm-stacks
+
+echo "==> 5. Setting up restricted SSH key authorization for '$TARGET_USER'..."
 SSH_DIR="$TARGET_HOME/.ssh"
 AUTH_KEYS="$SSH_DIR/authorized_keys"
 
@@ -101,7 +125,7 @@ fi
 
 chown -R "$TARGET_USER:$TARGET_USER" "$SSH_DIR"
 
-echo "==> 5. Verifying git metadata ownership..."
+echo "==> 6. Verifying git metadata ownership..."
 # Repaired per-path BEFORE any git operation, never `chown -R "$BASE_DIR"`:
 # only .git may have been left root-owned by older versions of this script,
 # and walking into bind-mounted runtime data (e.g.
@@ -113,7 +137,7 @@ if [ -d "$BASE_DIR/.git" ] && [ -n "$(find "$BASE_DIR/.git" ! -user "$TARGET_USE
     chown -R "$TARGET_USER:$TARGET_USER" "$BASE_DIR/.git"
 fi
 
-echo "==> 6. Setting up sparse checkout..."
+echo "==> 7. Setting up sparse checkout..."
 mkdir -p "$BASE_DIR"
 chown "$TARGET_USER:$TARGET_USER" "$BASE_DIR"
 
