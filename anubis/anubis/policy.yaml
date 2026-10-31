@@ -39,10 +39,7 @@ bots:
   # challenge must not interrupt that flow (authentik is the gate there).
   - name: authentik-outpost
     action: ALLOW
-    expression:
-      all:
-        - 'host in ["authentik.lab.altaabshor.com", "auth.altaabshor.com"]'
-        - 'path.startsWith("/outpost.goauthentik.io/")'
+    path_regex: ^/outpost\.goauthentik\.io/.*
 
   # authentik's SPA calls /api/v3/* and OIDC clients call /application/o/*;
   # both must reach the backend as JSON. Anubis answers with an HTML
@@ -51,13 +48,13 @@ bots:
     action: ALLOW
     expression:
       all:
-        - 'host in ["authentik.lab.altaabshor.com"]'
+        - 'host in ["authentik.lab.altaabshor.com", "auth.altaabshor.com"]'
         - 'path.startsWith("/api/") || path.startsWith("/static/")'
   - name: authentik-oidc
     action: ALLOW
     expression:
       all:
-        - 'host in ["authentik.lab.altaabshor.com"]'
+        - 'host in ["authentik.lab.altaabshor.com", "auth.altaabshor.com"]'
         - 'path.startsWith("/application/o/") || path.startsWith("/if/") || path.startsWith("/flows/")'
 
   - name: allow-livewire-updates
