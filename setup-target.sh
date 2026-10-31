@@ -71,12 +71,18 @@ docker image prune -a -f --filter "until=24h"
 docker compose pull || true
 docker compose up -d --build --remove-orphans
 
-# Reap the version this deploy just took out of service, then bound the
-# BuildKit cache. `--build` above runs on openwebui and on any compose file
-# with a build context, so without this the newest cache set is retained
-# forever.
+# Reap the version this deploy just took out of service. Images are safe to
+# prune by age: every service is running, so `-a` only hits superseded copies.
 docker image prune -a -f --filter "until=24h"
-docker builder prune -f --filter "until=24h"
+
+# Clear the BuildKit cache outright. openwebui is the only stack in the repo
+# with a build context, and its rebuild produces a fresh set of large cache
+# records (~4.5GB base + ~1.4GB pip) rather than reusing the previous one. A
+# 24h filter kept every set from the last day: on the AI LXC that reached
+# 12.9GB with 6.4GB reclaimable while all 12 images were live. Clearing costs
+# one base-image re-pull on the next openwebui build (inbound-only, no OCI
+# egress charge) and bounds the cache at zero between deploys.
+docker builder prune -f
 EOF
 
 chmod +x "$DEPLOY_SCRIPT"
