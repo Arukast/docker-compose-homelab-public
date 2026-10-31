@@ -22,40 +22,15 @@ bots:
     remote_addresses:
       - 100.64.0.0/10
 
-  # API/mobile/sync clients that authenticate (tokens, app passwords).
-  # User-Agent and header values are spoofable on their own -- add a
-  # path_regex to the rule where a service needs it tighter.
-  - name: authenticated-api
+  # Dont put CAPTCHA on IdP
+  - name: identity-provider
     action: ALLOW
-    headers_regex:
-      Authorization: ^(Bearer|Basic)\s+\S+
+    expression: 'host in ["authentik.lab.altaabshor.com", "auth.altaabshor.com", "keycloak.lab.altaabshor.com"]'
 
   # Webhook endpoints have no browser to run the challenge.
   - name: webhook-paths
     action: ALLOW
     path_regex: ^/(webhook|webhooks)/.*
-
-  # authentik outpost paths carry the forward-auth login redirects; the
-  # challenge must not interrupt that flow (authentik is the gate there).
-  - name: authentik-outpost
-    action: ALLOW
-    path_regex: ^/outpost\.goauthentik\.io/.*
-
-  # authentik's SPA calls /api/v3/* and OIDC clients call /application/o/*;
-  # both must reach the backend as JSON. Anubis answers with an HTML
-  # challenge page (HTTP 200), which authentik renders as a flow error.
-  - name: authentik-api
-    action: ALLOW
-    expression:
-      all:
-        - 'host in ["authentik.lab.altaabshor.com", "auth.altaabshor.com"]'
-        - 'path.startsWith("/api/") || path.startsWith("/static/")'
-  - name: authentik-oidc
-    action: ALLOW
-    expression:
-      all:
-        - 'host in ["authentik.lab.altaabshor.com", "auth.altaabshor.com"]'
-        - 'path.startsWith("/application/o/") || path.startsWith("/if/") || path.startsWith("/flows/")'
 
   - name: allow-livewire-updates
     action: ALLOW
