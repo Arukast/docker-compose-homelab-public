@@ -41,6 +41,14 @@ crowdsec/config/  crowdsec/data/        hub, SQLite, GeoIP   runtime, gitignored
   plan + contribution driven (Lite ~3k / Community ~15k / Premium ~60k) and only official,
   unmodified Hub scenarios count as contribution. Never set `DISABLE_ONLINE_API` unless you
   knowingly give up the feed.
+- **`CROWDSEC_ENROLL_KEY` must stay empty.** The entrypoint runs `cscli console enroll`
+  under `set -e`, so any failure (DNS/network outage at boot, or a key that is already
+  used) makes the process exit and the container crash-loop — which takes the LAPI down and
+  leaves the bouncer with nothing to pull. Enrollment is not needed for the CAPI blocklist.
+- **A reboot can leave containers with no network at all** (`docker inspect <c>` →
+  `"Networks": {}`), which looks exactly like a DNS failure (`network is unreachable`) and
+  a bouncer stuck on `connection refused`. Fix with
+  `docker compose up -d --force-recreate` for the affected stacks.
 - **The hosts are independent LAPIs:** no decision is shared, so a ban on one host does not
   protect the other. Cross-host enforcement means the distributed setup (one LAPI + remote
   agents/bouncers), not a config tweak here.
