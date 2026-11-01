@@ -14,13 +14,21 @@ services:
       - no-new-privileges:true
     <<: *default-logging
     environment:
-      - COLLECTIONS=${CROWDSEC_COLLECTIONS:-crowdsecurity/linux crowdsecurity/sshd crowdsecurity/nginx-proxy-manager}
+      - COLLECTIONS=${CROWDSEC_COLLECTIONS:-crowdsecurity/linux crowdsecurity/sshd crowdsecurity/nginx-proxy-manager crowdsecurity/whitelist-good-actors}
       # Registers the firewall bouncer with this key on startup (no cscli step).
       - BOUNCER_KEY_firewall=${CROWDSEC_BOUNCER_KEY}
       # Optional: enroll this instance in the CrowdSec web Console
-      # (app.crowdsec.net). Empty = skipped.
+      # (app.crowdsec.net). Empty = skipped. Enrollment is NOT needed for the
+      # CAPI community blocklist; it only adds Console-side sharing. Do not set
+      # DISABLE_ONLINE_API, which would drop the blocklist entirely.
       - ENROLL_KEY=${CROWDSEC_ENROLL_KEY:-}
       - ENROLL_INSTANCE_NAME=${CROWDSEC_ENROLL_INSTANCE_NAME:-oci-core}
+      # Better concurrency for the SQLite DB now that the dashboard polls the
+      # LAPI continuously. The image config defaults this to false.
+      - USE_WAL=${CROWDSEC_USE_WAL:-true}
+      # Names this host's local agent. The image default is "localhost", which
+      # makes both hosts indistinguishable in the dashboard's Machine column.
+      - CUSTOM_HOSTNAME=${CROWDSEC_CUSTOM_HOSTNAME:-localhost}
     # External lookups die without these: on OCI the VCN resolver
     # (169.254.169.254) is unreachable from container networking, and the hub
     # install fetches version.crowdsec.net at every start. Container names
@@ -32,10 +40,15 @@ services:
     volumes:
       - ./crowdsec/acquis.d:/etc/crowdsec/acquis.d
       - ./crowdsec/config:/etc/crowdsec
+      # Tracked config overrides; merges over the image-seeded config.yaml.
+      # A single-file mount layered on top of the directory mount above.
+      - ./config.yaml.local:/etc/crowdsec/config.yaml.local:ro
       - ./crowdsec/data:/var/lib/crowdsec/data
       # The TLS edge (npm-front) writes its proxy-host logs here. Only these
       # logs carry real client IPs -- the internal router sees the gateway's
-      # IP -- so bans stay meaningful.
+      # IP -- so bans stay meaningful. On hosts without npm-front (e.g.
+      # OCI-Production) Docker creates an empty directory instead: the engine
+      # starts with no HTTP logs and git ignores the empty dir.
       - ../npm-front/npm-front/data/logs:/var/log/npm:ro
       # Host logs land under /var/log/host, NOT /var/log: mounting the host's
       # /var/log read-only at /var/log blocks Docker from creating the nested
@@ -46,6 +59,9 @@ services:
       - crowdsec-net
     ports:
       - "${HOST_IP:-127.0.0.1}:8080:8080"
+      # Prometheus collector, scraped by crowdsec-dashboard over HOST_IP. The
+      # image already listens on 0.0.0.0:6060 inside the container.
+      - "${HOST_IP:-127.0.0.1}:6060:6060"
     healthcheck:
       test: ["CMD", "cscli", "lapi", "status"]
       interval: 30s

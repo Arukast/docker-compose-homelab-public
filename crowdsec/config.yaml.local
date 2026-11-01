@@ -1,0 +1,21 @@
+# Tracked overrides merged over /etc/crowdsec/config.yaml at every start
+# (mappings merge, sequences REPLACE). Never edit crowdsec/crowdsec/config/ --
+# that tree is image-seeded runtime state and is gitignored.
+#
+# `prometheus` is deliberately absent: the image's own build/docker/config.yaml
+# already enables it at level full on 0.0.0.0:6060, and docker-compose.yml
+# publishes that port on HOST_IP for crowdsec-dashboard to scrape.
+
+api:
+  server:
+    # Deleting an alert (DELETE /v1/alerts) is IP-gated, not just key-gated:
+    # without this the dashboard authenticates fine but gets a 403. It reaches
+    # the LAPI through the published port, so it appears as a Docker bridge
+    # address. These are Docker's default address pools; every request still
+    # needs valid machine credentials.
+    # Sequences are replaced, not merged -- loopback has to be repeated here.
+    trusted_ips:
+      - 127.0.0.1
+      - ::1
+      - 172.16.0.0/12
+      - 192.168.0.0/16

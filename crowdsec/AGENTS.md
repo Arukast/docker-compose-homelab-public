@@ -29,6 +29,30 @@ crowdsec/config/  crowdsec/data/        hub, SQLite, GeoIP   runtime, gitignored
   `version.crowdsec.net` on every start.
 - The bouncer needs `NET_ADMIN` + `NET_RAW` because it manipulates host nftables; the
   engine needs `DAC_OVERRIDE` only to read root-owned host logs.
+- **`config.yaml.local` is the only tracked engine config.** `crowdsec/crowdsec/config/` is
+  image-seeded runtime state — an edit there is lost on reseed. The override is mounted as
+  a single file on top of that directory mount.
+- **`6060` is the Prometheus collector**, published on `HOST_IP` next to `8080`. The image
+  already binds it to `0.0.0.0:6060` inside the container, so `config.yaml.local` must not
+  re-declare it.
+- **The blocklist comes from CAPI, not from the dashboard or the Console.** Tier is
+  plan + contribution driven (Lite ~3k / Community ~15k / Premium ~60k) and only official,
+  unmodified Hub scenarios count as contribution. Never set `DISABLE_ONLINE_API` unless you
+  knowingly give up the feed.
+- **The hosts are independent LAPIs:** no decision is shared, so a ban on one host does not
+  protect the other. Cross-host enforcement means the distributed setup (one LAPI + remote
+  agents/bouncers), not a config tweak here.
+- **`crowdsec-dashboard` (sibling stack) holds one machine credential per LAPI.** Wiping
+  `crowdsec/data/` or deleting that machine breaks the dashboard with 403s until
+  `cscli machines add crowdsec-web-ui --password ... -f /dev/null` is re-run. `-f /dev/null`
+  is mandatory, otherwise `cscli` overwrites the container's `local_api_credentials.yaml`.
+- On hosts without `npm-front` (e.g. `OCI-Production`), the cross-directory log mount creates
+  an empty directory: expected, the engine simply has no HTTP logs there.
+- Changing `CUSTOM_HOSTNAME` on an already-running host registers the new machine but leaves
+  the old one behind (it was `localhost`). Drop it once:
+  `docker compose exec crowdsec cscli machines delete localhost`.
+- This stack deploys to **two** hosts via `hosts.env`; the dashboard is a separate directory
+  so it can target OCI-Core alone.
 
 ## Adding a log source
 

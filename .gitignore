@@ -23,6 +23,10 @@ openwebui/open-webui-data/*
 crowdsec/crowdsec/config/
 crowdsec/crowdsec/data/
 
+# Runtime state: state.db holds dashboard users, passkeys, sessions and
+# notification secrets; cache.db is a rebuildable alert cache. Never commit.
+crowdsec-dashboard/data/
+
 # Get ignored for now because the workflows is not supported
 glances/glances/glances.conf
 .commandcode

@@ -61,7 +61,8 @@ embedder ──► text-embeddings-inference (optional standalone embeddings)
 | `adguard` | DNS + DHCP server | 53, 3000 | host network |
 | `host-tailscale` | Tailscale node / exit node | — | host network |
 | `authentik` | identity provider (SSO, OIDC, LDAP) | 9000 | loopback |
-| `crowdsec` | intrusion detection + nftables bouncer | 8080 | loopback |
+| `crowdsec` | intrusion detection + nftables bouncer | 8080, 6060 | loopback |
+| `crowdsec-dashboard` | self-hosted CrowdSec UI (alerts, decisions, allowlists, metrics) | 3000 | via `npm` (tailnet domain) + loopback |
 | `socket-proxy` | Docker API metadata proxy | 2375 | loopback |
 | `litellm-proxy` | OpenAI-compatible gateway + Presidio guardrails | 4000 | loopback |
 | `omniroute` | model router / provider aggregator | 20128 | loopback |
@@ -142,6 +143,9 @@ each stack. Several directories have their own `AGENTS.md` for stack-specific de
 
 - Loopback-by-default publishing. Public exposure is deliberate and takes exactly two
   forms: the Cloudflare tunnel, and `npm-front`'s public 80/443 in front of Anubis.
+- CrowdSec data stays local: `crowdsec-dashboard` reads both LAPIs directly and the CAPI
+  community blocklist is pulled by each engine, with no Console enrollment. Its vhost
+  resolves only to a Tailscale address.
 - Secrets live in untracked per-stack `.env` files, referenced as `${VAR:?…}` so a missing
   value fails loudly instead of booting with an empty password.
 - Services run with dropped capabilities. The Docker socket is exposed only through a

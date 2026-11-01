@@ -1,0 +1,94 @@
+x-logging: &default-logging
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+services:
+  # Self-hosted CrowdSec dashboard (alerts, decisions, allowlists, runtime
+  # metrics, notifications) -- the replacement for the paywalled
+  # app.crowdsec.net console.
+  #
+  # It only READS the two LAPIs. Enforcement is untouched: each engine pulls the
+  # CAPI community blocklist itself, and decisions stay per-host because the two
+  # LAPIs are independent. Reached through npm over npm-net at
+  # https://crowdsec.<domain>:8443; the HOST_IP publish is tailnet-only direct
+  # access for troubleshooting.
+  crowdsec-web-ui:
+    image: ghcr.io/theduffman85/crowdsec-web-ui:2026.10.13@sha256:3b7d608ea3fb1d8ecf12079c188f9a8c705c89cf03685db4a1b89303d8e17477
+    container_name: ${CROWDSEC_WEBUI_CONTAINER_NAME:-crowdsec-web-ui}
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    <<: *default-logging
+    environment:
+      # Indexed form on purpose: one LAPI per instance but a second metrics
+      # endpoint, and the single-instance CONFIG_INSTANCE_* shorthand must not
+      # be mixed with indexed metrics.
+      #
+      # Instance 0: the OCI-Core LAPI, reached through its published port.
+      - CONFIG_INSTANCES_0_ID=${CROWDSEC_WEBUI_INSTANCE_0_ID:-oci-core}
+      - CONFIG_INSTANCES_0_NAME=${CROWDSEC_WEBUI_INSTANCE_0_NAME:-OCI Core}
+      - CONFIG_INSTANCES_0_LAPI_URL=${CROWDSEC_WEBUI_LAPI_0_URL:?required}
+      - CONFIG_INSTANCES_0_LAPI_AUTH_USERNAME=${CROWDSEC_WEBUI_LAPI_USERNAME:-crowdsec-web-ui}
+      - CONFIG_INSTANCES_0_LAPI_AUTH_PASSWORD=${CROWDSEC_WEBUI_LAPI_0_PASSWORD:?required}
+      - CONFIG_INSTANCES_0_METRICS_0_ID=core
+      - CONFIG_INSTANCES_0_METRICS_0_NAME=OCI Core
+      - CONFIG_INSTANCES_0_METRICS_0_URL=${CROWDSEC_WEBUI_METRICS_0_URL:?required}
+      # Instance 1: the OCI-Production LAPI, over the tailnet.
+      - CONFIG_INSTANCES_1_ID=${CROWDSEC_WEBUI_INSTANCE_1_ID:-oci-production}
+      - CONFIG_INSTANCES_1_NAME=${CROWDSEC_WEBUI_INSTANCE_1_NAME:-OCI Production}
+      - CONFIG_INSTANCES_1_LAPI_URL=${CROWDSEC_WEBUI_LAPI_1_URL:?required}
+      - CONFIG_INSTANCES_1_LAPI_AUTH_USERNAME=${CROWDSEC_WEBUI_LAPI_USERNAME:-crowdsec-web-ui}
+      - CONFIG_INSTANCES_1_LAPI_AUTH_PASSWORD=${CROWDSEC_WEBUI_LAPI_1_PASSWORD:?required}
+      - CONFIG_INSTANCES_1_METRICS_0_ID=prod
+      - CONFIG_INSTANCES_1_METRICS_0_NAME=OCI Production
+      - CONFIG_INSTANCES_1_METRICS_0_URL=${CROWDSEC_WEBUI_METRICS_1_URL:?required}
+    # The Recent CVE rule queries services.nvd.nist.gov and the update check
+    # calls the GitHub release API; on OCI the VCN resolver (169.254.169.254) is
+    # unreachable from container networks. Container names still resolve via
+    # Docker's embedded DNS.
+    dns:
+      - ${DNS_PRIMARY:-1.1.1.1}
+      - ${DNS_SECONDARY:-8.8.8.8}
+    ports:
+      # Tailnet-only direct access, no proxy in the path. npm reaches the UI by
+      # container name over npm-net instead.
+      - "${HOST_IP:-127.0.0.1}:${CROWDSEC_WEBUI_PORT:-3000}:3000"
+    volumes:
+      # state.db (users, passkeys, sessions, notification config) plus a
+      # rebuildable cache.db of alert/decision history. Bind-mounted so backup
+      # tooling sees it.
+      - ./crowdsec-dashboard/data:/app/data
+      - /etc/localtime:/etc/localtime:ro
+    networks:
+      - npm-net
+    # The image ships its own HEALTHCHECK (node fetch /api/health), so no test
+    # is declared here.
+    cap_drop:
+      - ALL
+    cap_add:
+      # The entrypoint starts as root, runs `chown -R node:node /app/data` (the
+      # bind mount is root-owned on first boot) and then gosu's down to node.
+      # Without these it aborts under its own `set -e`; same set stirling-pdf
+      # needs for the same pattern.
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETUID
+      - SETGID
+    deploy:
+      resources:
+        limits:
+          # Node + SQLite cache holding two 7-day alert histories. No official
+          # sizing published; real use idles well under 200MiB, this is a
+          # backstop, not a budget.
+          memory: 512m
+          cpus: "1.0"
+
+networks:
+  # Shared with npm (and cloudflared) so npm can forward to the UI by container
+  # name. Create once per host: docker network create npm-net
+  npm-net:
+    external: true
