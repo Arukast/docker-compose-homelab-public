@@ -13,9 +13,12 @@ api:
     # the LAPI through the published port, so it appears as a Docker bridge
     # address. These are Docker's default address pools; every request still
     # needs valid machine credentials.
+    # 100.64.0.0/10 is the tailnet: the dashboard on OCI-Core reads the OTHER
+    # host's LAPI from its Tailscale IP, so cross-host alert deletion needs it.
     # Sequences are replaced, not merged -- loopback has to be repeated here.
     trusted_ips:
       - 127.0.0.1
       - ::1
       - 172.16.0.0/12
       - 192.168.0.0/16
+      - 100.64.0.0/10

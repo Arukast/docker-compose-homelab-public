@@ -31,7 +31,9 @@ crowdsec/config/  crowdsec/data/        hub, SQLite, GeoIP   runtime, gitignored
   engine needs `DAC_OVERRIDE` only to read root-owned host logs.
 - **`config.yaml.local` is the only tracked engine config.** `crowdsec/crowdsec/config/` is
   image-seeded runtime state — an edit there is lost on reseed. The override is mounted as
-  a single file on top of that directory mount.
+  a single file on top of that directory mount. Its `trusted_ips` must include
+  `100.64.0.0/10`: the dashboard on OCI-Core reaches the *other* host's LAPI from a Tailscale
+  IP, and alert deletion is IP-gated.
 - **`6060` is the Prometheus collector**, published on `HOST_IP` next to `8080`. The image
   already binds it to `0.0.0.0:6060` inside the container, so `config.yaml.local` must not
   re-declare it.
