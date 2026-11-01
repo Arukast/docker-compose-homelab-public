@@ -62,7 +62,7 @@ embedder ──► text-embeddings-inference (optional standalone embeddings)
 | `host-tailscale` | Tailscale node / exit node | — | host network |
 | `authentik` | identity provider (SSO, OIDC, LDAP) | 9000 | loopback |
 | `crowdsec` | intrusion detection + nftables bouncer | 8080, 6060 | loopback |
-| `crowdsec-dashboard` | self-hosted CrowdSec UI (alerts, decisions, allowlists, metrics) | 3000 | via `npm` (tailnet domain) + loopback |
+| `crowdsec-dashboard` | self-hosted CrowdSec UI (alerts, decisions, allowlists, metrics) | 3005 | via `npm` (tailnet domain) + loopback |
 | `socket-proxy` | Docker API metadata proxy | 2375 | loopback |
 | `litellm-proxy` | OpenAI-compatible gateway + Presidio guardrails | 4000 | loopback |
 | `omniroute` | model router / provider aggregator | 20128 | loopback |

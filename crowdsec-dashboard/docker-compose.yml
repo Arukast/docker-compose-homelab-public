@@ -55,7 +55,9 @@ services:
     ports:
       # Tailnet-only direct access, no proxy in the path. npm reaches the UI by
       # container name over npm-net instead.
-      - "${HOST_IP:-127.0.0.1}:${CROWDSEC_WEBUI_PORT:-3000}:3000"
+      # Host port 3005, not 3000: AdGuard runs on the host network of OCI-Core
+      # and owns *:3000. The container itself still listens on 3000.
+      - "${HOST_IP:-127.0.0.1}:${CROWDSEC_WEBUI_PORT:-3005}:3000"
     volumes:
       # state.db (users, passkeys, sessions, notification config) plus a
       # rebuildable cache.db of alert/decision history. Bind-mounted so backup

@@ -25,6 +25,9 @@ data/                state.db + cache.db   runtime, gitignored
   `HOST_IP`. The LAPI (8080) does not expose metrics.
 - **It must join `npm-net`** so npm can forward to `crowdsec-web-ui:3000`. The HOST_IP
   publish is only for tailnet/direct troubleshooting.
+- **Host port is 3005, not 3000.** AdGuard runs on the host network of OCI-Core and owns
+  `*:3000`, so the compose default is 3005. The container port stays 3000, which is why
+  the npm proxy host forwards to `crowdsec-web-ui:3000`.
 - `https://...` vhost is required for passkeys: WebAuthn needs a secure context, so a
   reverse proxy terminating TLS is not optional.
 - The image ships its own HEALTHCHECK; `/api/health` is intentionally public.
