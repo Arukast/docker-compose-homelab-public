@@ -16,7 +16,7 @@ services:
   # https://crowdsec.<domain>:8443; the HOST_IP publish is tailnet-only direct
   # access for troubleshooting.
   crowdsec-web-ui:
-    image: ghcr.io/theduffman85/crowdsec-web-ui:2026.10.13@sha256:3b7d608ea3fb1d8ecf12079c188f9a8c705c89cf03685db4a1b89303d8e17477
+    image: ghcr.io/theduffman85/crowdsec-web-ui:2026.11.5@sha256:8bb448c5c9d9991750dd9e967f3c079782a0bfe8ad1737b87a981ecc1f944a5b
     container_name: ${CROWDSEC_WEBUI_CONTAINER_NAME:-crowdsec-web-ui}
     restart: unless-stopped
     security_opt:
